@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="plugin.video.okino" name="oKino" version="0.0.3" provider-name="anteo">
+    <requires>
+        <import addon="xbmc.python" version="2.14.0"/>
+        <import addon="script.transmission" version="0.7.6"/>
+        <import addon="plugin.program.utorrent" version="1.1.3"/>
+        <import addon="script.module.torrent2http" version="0.0.1"/>
+    </requires>
+    <extension point="xbmc.python.pluginsource" library="addon.py">
+        <provides>video</provides>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <platform>all</platform>
+        <language>ru en</language>
+        <website>http://www.okino.ru/</website>
+        <summary lang="en">Explore oKino.ru</summary>
+        <summary lang="ru">Ваш проводник по порталу oKino.ru</summary>
+        <description lang="ru">Находите и просматривайте фильмы и сериалы с портала oKino.ru!
+
+Для использования необходимо подключение у провайдера услуги "Расширенный поиск".</description>
+        <description lang="en">Explore movies and series on oKino.ru!</description>
+        <email>anteo@academ.org</email>
+    </extension>
+</addon>
