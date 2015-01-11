@@ -58,7 +58,7 @@ def show_folders(media_id):
     total_size = sum(f.size for f in folders)
     meta['total_size'] = total_size
     for f in folders:
-        if len(f.files) == 1 and not meta['is_series']:
+        if len(f.files) == 1 and not meta.get('is_series'):
             item = itemify_file(f.files[0], can_mark_watched=1)
             item['label'] = tf.folder_file_title(f, f.files[0])
             plugin.add_item(item)

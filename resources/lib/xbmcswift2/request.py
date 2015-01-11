@@ -54,10 +54,12 @@ class Request(object):
                         pass
 
     def url_with_params(self, **kwargs):
-        url_parts = list(urlparse.urlparse(self.url))
+        scheme, remainder = self.url.split(':', 1)
+        url_parts = list(urlparse.urlparse(remainder))
         query = dict(self.args)
         query.update(kwargs)
         url_parts[4] = urllib.urlencode(query)
+        url_parts[0] = scheme
         return urlparse.urlunparse(url_parts)
 
     def arg(self, name, default=None):
