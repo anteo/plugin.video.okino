@@ -79,6 +79,8 @@ class TorrentClient:
 
 
 class TorrentStream:
+    saved_files_needed = False
+
     def __init__(self):
         pass
 

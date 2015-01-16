@@ -270,8 +270,11 @@
     <string id="33025">Invalid download path specified (check the settings)</string>
     <string id="33026">Time out</string>
     <string id="33027">Torrent error (%s)</string>
+    <string id="33028">torrent2http has crashed (see log for details)</string>
 
-    <string id="33030">Invalid download path specified (check the settings)</string>
+    <string id="33030">Invalid path for temporary files specified (check the settings)</string>
+    <string id="33031">Invalid path for downloaded files specified (check the settings)</string>
+    <string id="33032">Path for downloaded files and temporary path should not be the same</string>
 
     <string id="33040">Can't connect to AceStream engine</string>
     <string id="33041">Can't send data to AceStream engine</string>
@@ -336,11 +339,17 @@
     <string id="40107">Limit download rate, kB/s</string>
     <string id="40108">Limit upload rate, kB/s</string>
     <string id="40109">Debug mode</string>
-    <string id="40110">Save downloaded files</string>
+    <string id="40110">Save downloaded files after watching</string>
     <string id="40111">Pre-buffer amount before start playing, Mb</string>
+    <string id="40112">Temporary files folder</string>
+    <string id="40113">Max temporary folder size, Gb</string>
+    <string id="40114">Never</string>
+    <string id="40115">Always</string>
+    <string id="40116">Ask</string>
+    <string id="40117">Warning! All files in specified folder will be deleted periodically</string>
 
     <string id="40200">General</string>
-    <string id="40201">Download files to folder</string>
+    <string id="40201">Save downloaded files to folder</string>
     <string id="40202">Results per page</string>
     <string id="40203">Simultaneously fetch results</string>
     <string id="40204">Show in list</string>
@@ -376,5 +385,7 @@
     <string id="40313">No results found</string>
     <string id="40316">Torrent added</string>
     <string id="40317">Started torrent download.|Would you like to open %s plugin?</string>
+    <string id="40318">Downloading finished. Do you want to save file?</string>
+    <string id="40319">Copying...</string>
 
 </strings>

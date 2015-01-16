@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from okino.plugin import plugin
-from okino.common import lang, batch, abort_requested
+from okino.common import lang, batch, abort_requested, save_files, purge_temp_dir
 from okino.plugin.common import with_fanart, itemify_file, itemify_folder, \
     itemify_details, itemify_bookmarks
 from okino.enumerations import Section, Genre
@@ -36,7 +36,10 @@ def play_file(media_id, url, title):
                                total_size=meta.get('total_size'))
 
     player.attach([player.PLAYBACK_STOPPED, player.PLAYBACK_ENDED], check_and_mark_watched)
-    stream.play(player, torrent, item)
+    purge_temp_dir()
+    temp_files = stream.play(player, torrent, item)
+    if temp_files:
+        save_files(temp_files, rename=not stream.saved_files_needed)
 
 
 @plugin.route('/files/<media_id>/<folder_id>')

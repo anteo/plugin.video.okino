@@ -2,6 +2,8 @@
 
 import logging
 import time
+import hashlib
+import os
 
 from torrent2http import Error, State, Engine, MediaType
 from okino.common import abort_requested, sleep
@@ -27,6 +29,7 @@ class Torrent2HttpStream(TorrentStream):
         """
         TorrentStream.__init__(self)
         self.engine = engine
+        self.saved_files_needed = True
         self.log = log or logging.getLogger(__name__)
         self.buffering_progress = buffering_progress or DummyTorrentTransferProgress()
         self.playing_progress = playing_progress or DummyTorrentTransferProgress()
@@ -53,6 +56,8 @@ class Torrent2HttpStream(TorrentStream):
             return Torrent2HttpStreamError(33026, error.message, cause=error)
         elif error.code == error.TORRENT_ERROR:
             return Torrent2HttpStreamError(33027, "Torrent error (%s)", error.kwargs['reason'], cause=error)
+        elif error.code == error.CRASHED:
+            return Torrent2HttpStreamError(33028, error.message, cause=error)
 
     @staticmethod
     def _convert_state(state):
@@ -104,16 +109,17 @@ class Torrent2HttpStream(TorrentStream):
         :type player: AbstractPlayer
         """
         list_item = list_item or {}
+        file_status = status = None
+        subtitles = None
 
         try:
-            with nested(closing(self.engine),
-                        ):
+            with closing(self.engine):
                 self.log.info("Starting torrent2http engine...")
                 self.engine.uri = torrent.url
+                resume_file = hashlib.md5(torrent.url).hexdigest() + ".resume"
+                self.engine.resume_file = os.path.join(self.engine.download_path, resume_file)
                 self.engine.start(file_id or 0)
                 ready = False
-                subtitles = None
-                status = None
 
                 if self.pre_buffer_bytes:
                     with closing(self.buffering_progress):
@@ -135,7 +141,7 @@ class Torrent2HttpStream(TorrentStream):
                                 sub_files = self.engine.list(media_types=[MediaType.SUBTITLES])
                                 if sub_files:
                                     self.log.info("Detected subtitles: %s", sub_files[0])
-                                    subtitles = sub_files[0].url
+                                    subtitles = sub_files[0]
                             else:
                                 file_status = self.engine.file_status(file_id)
                                 if not file_status:
@@ -146,7 +152,7 @@ class Torrent2HttpStream(TorrentStream):
                                 if file_status.download >= self.pre_buffer_bytes:
                                     ready = True
                                     break
-                            elif status.state in [State.FINISHED, State.SEEDING, State.CHECKING_FILES]:
+                            elif status.state in [State.FINISHED, State.SEEDING]:
                                 ready = True
                                 break
                             else:
@@ -162,7 +168,7 @@ class Torrent2HttpStream(TorrentStream):
                         sleep(self.SLEEP_DELAY)
                         status = self.engine.status()
                         self.engine.check_torrent_error(status)
-                        if status.state in [State.DOWNLOADING, State.FINISHED, State.SEEDING, State.CHECKING_FILES]:
+                        if status.state in [State.DOWNLOADING, State.FINISHED, State.SEEDING]:
                             ready = True
                             break
                 if ready:
@@ -175,7 +181,7 @@ class Torrent2HttpStream(TorrentStream):
                         list_item['path'] = file_status.url
                         self.playing_progress.name = status.name
                         self.playing_progress.size = file_status.size
-                        player.play(list_item, subtitles)
+                        player.play(list_item, subtitles.url if subtitles else None)
                         start = time.time()
                         while not self._aborted() and (player.is_playing()
                                                        or time.time()-start < self.playback_start_timeout):
@@ -188,6 +194,11 @@ class Torrent2HttpStream(TorrentStream):
                             player.get_percent()
 
                         sleep(self.SLEEP_DELAY)
-
         except Error as err:
             raise self._convert_engine_error(err)
+        if status and file_status and status.state in [State.FINISHED, State.SEEDING]:
+            files = [file_status.save_path]
+            if subtitles and os.path.exists(subtitles.save_path):
+                files.append(subtitles.save_path)
+            return files
+        return []

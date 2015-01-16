@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from okino import container as container
 from okino.plugin import plugin
-from okino.common import lang, notify
+from okino.common import lang, notify, save_path
 from okino.enumerations import Section
 from util.encoding import ensure_unicode, ensure_str
 from okino.torrent.client import *
@@ -121,7 +121,7 @@ def search_result_context_menu(details, date_added=None, total_size=None):
 @plugin.route('/download/<url>')
 def download_torrent(url):
     client = container.torrent_client()
-    client.add(container.torrent(url), container.save_path())
+    client.add(container.torrent(url), save_path(local=True))
     if isinstance(client, TransmissionClient):
         name = 'Transmission'
         addon_id = 'script.transmission'

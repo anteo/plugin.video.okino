@@ -81,17 +81,13 @@ def torrent_client():
     return client() if client else None
 
 
-def save_path():
-    from okino.common import validate_save_path
-    return validate_save_path(plugin.get_setting('save-path', unicode))
-
-
 @singleton
 def acestream_engine():
     import acestream
+    from okino.common import temp_path
     return acestream.Engine(host=plugin.get_setting('as-host', unicode),
                             port=plugin.get_setting('as-port', int, default=62062),
-                            save_path=save_path() if plugin.get_setting('save-files', bool) else None)
+                            save_path=temp_path() if plugin.get_setting('save-files', int) else None)
 
 
 @singleton
@@ -117,7 +113,8 @@ def ace_stream():
 @singleton
 def torrent2http_engine():
     import torrent2http
-    return torrent2http.Engine(download_path=save_path(),
+    from okino.common import temp_path
+    return torrent2http.Engine(download_path=temp_path(),
                                state_file=plugin.addon_data_path('t2h_state'),
                                connections_limit=plugin.get_setting('t2h-max-connections', int, default=None),
                                download_kbps=plugin.get_setting('t2h-download-rate', int, default=None),
@@ -125,11 +122,10 @@ def torrent2http_engine():
                                log_overall_progress=plugin.get_setting('t2h-debug-mode', bool),
                                log_pieces_progress=plugin.get_setting('t2h-debug-mode', bool),
                                debug_alerts=plugin.get_setting('t2h-debug-mode', bool),
-                               keep_complete=plugin.get_setting('save-files', bool),
                                listen_port=plugin.get_setting('t2h-listen-port', int, default=6881),
                                use_random_port=plugin.get_setting('t2h-use-random-port', bool),
                                trackers=['http://retracker.local/announce'],
-                               min_reconnect_time=5, max_failcount=5,
+                               keep_files=True,
                                enable_utp=False)
 
 

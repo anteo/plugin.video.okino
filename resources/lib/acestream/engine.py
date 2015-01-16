@@ -48,6 +48,7 @@ class Engine:
         self.save_path = save_path
         self.save_indexes = []
         self.save_encrypted = save_encrypted
+        self.saved_files = {}
         self.on_playback_resumed = on_playback_resumed
         self.on_playback_paused = on_playback_paused
         self.error = False
@@ -177,6 +178,7 @@ class Engine:
 
     def play_torrent(self, url, indexes=None, developer_id=0, offiliate_id=0, zone_id=0, stream_id=0, timeout=20):
         indexes = indexes or [0]
+        self.saved_files = {}
         self.save_indexes = indexes
         self.sink.send("START TORRENT %s %s %d %d %d %d" % (url, ",".join(str(index) for index in indexes),
                                                             developer_id, offiliate_id, zone_id, stream_id))
@@ -184,6 +186,7 @@ class Engine:
 
     def play_infohash(self, infohash, indexes=None, developer_id=0, offiliate_id=0, zone_id=0, timeout=20):
         indexes = indexes or [0]
+        self.saved_files = {}
         self.save_indexes = indexes
         self.sink.send("START INFOHASH %s %s %d %d %d" % (infohash, ",".join(str(index) for index in indexes),
                                                           developer_id, offiliate_id, zone_id))
@@ -191,12 +194,14 @@ class Engine:
 
     def play_pid(self, content_id, indexes=None, timeout=20):
         indexes = indexes or [0]
+        self.saved_files = {}
         self.save_indexes = indexes
         self.sink.send("START PID %d %s" % (content_id, ",".join(str(index) for index in indexes)))
         self._start_play(timeout)
 
     def play_data(self, data, indexes=None, developer_id=0, offiliate_id=0, zone_id=0, timeout=20):
         indexes = indexes or [0]
+        self.saved_files = {}
         self.save_indexes = indexes
         import base64
         self.sink.send("START RAW %s %s %d %d %d" % (base64.b64encode(data), ",".join(str(index) for index in indexes),
@@ -205,6 +210,7 @@ class Engine:
 
     def play_url(self, url, indexes=None, developer_id=0, offiliate_id=0, zone_id=0, timeout=20):
         indexes = indexes or [0]
+        self.saved_files = {}
         self.save_indexes = indexes
         self.sink.send("START URL %s %s %d %d %d" % (url, ",".join(str(index) for index in indexes),
                                                      developer_id, offiliate_id, zone_id))
@@ -362,8 +368,9 @@ class Engine:
     def _save_file(self, index, infohash, _format):
         import urllib
 
-        if self.save_path and int(index) in self.save_indexes:
-            filename = self.files and self.files[int(index)] or infohash
+        index = int(index)
+        if self.save_path and index in self.save_indexes:
+            filename = self.files and self.files[index] or infohash
             if _format == "encrypted":
                 if not self.save_encrypted:
                     return
@@ -374,6 +381,7 @@ class Engine:
                 if not os.path.exists(dir_name):
                     os.mkdir(dir_name)
                 self.sink.send("SAVE infohash=%s index=%s path=%s" % (infohash, index, urllib.quote(path)))
+            self.saved_files[index] = path
 
     def _update_status(self, status_string):
         import re

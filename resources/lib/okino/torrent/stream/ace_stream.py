@@ -144,6 +144,9 @@ class AceStream(TorrentStream):
             self.log.info("Playback aborted.")
         except Error as err:
             raise self._convert_engine_error(err)
+        if file_id in self.engine.saved_files:
+            return [self.engine.saved_files[file_id]]
+        return []
 
     def _poll_engine(self, delay):
         sleep(int(delay*1000))
