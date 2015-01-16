@@ -5,6 +5,8 @@ import HTMLParser
 
 
 htmlParser = HTMLParser.HTMLParser()
+# Init unescape immediately, because in multi-threaded environment it may fail
+htmlParser.unescape("&nbsp;")
 
 
 class HtmlElement:
