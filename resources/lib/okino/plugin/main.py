@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from okino.plugin import plugin
-from okino.common import lang, batch, abort_requested, save_files, purge_temp_dir
+from okino.common import lang, batch, abort_requested, save_files, purge_temp_dir, log
 from okino.plugin.common import with_fanart, itemify_file, itemify_folder, \
     itemify_details, itemify_bookmarks
 from okino.enumerations import Section, Genre
@@ -29,17 +29,19 @@ def play_file(media_id, url, title):
     torrent = container.torrent(url=url)
     player = container.player()
 
-    def check_and_mark_watched():
+    def check_and_mark_watched(event):
+        log.info("Playback event: %s, current player progress: %d", event, player.get_percent())
         if player.get_percent() >= 90 and 'can_mark_watched' in plugin.request.args:
             watched_items = container.watched_items()
             watched_items.mark(media_id, date_added=meta.get('date_added'),
                                total_size=meta.get('total_size'))
 
     player.attach([player.PLAYBACK_STOPPED, player.PLAYBACK_ENDED], check_and_mark_watched)
-    purge_temp_dir()
     temp_files = stream.play(player, torrent, item)
     if temp_files:
-        save_files(temp_files, rename=not stream.saved_files_needed)
+        save_files(temp_files, rename=not stream.saved_files_needed, on_finish=purge_temp_dir)
+    else:
+        purge_temp_dir()
 
 
 @plugin.route('/files/<media_id>/<folder_id>')

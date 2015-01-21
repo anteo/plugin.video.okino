@@ -140,6 +140,9 @@ class AceStream(TorrentStream):
                             progress.update_status(*update_status)
                             player.get_percent()
                             self._poll_engine(self.POLL_DELAY)
+
+                        # handling PLAYBACK_STOPPED and PLAYBACK_ENDED events
+                        sleep(1000)
         except AbortError:
             self.log.info("Playback aborted.")
         except Error as err:

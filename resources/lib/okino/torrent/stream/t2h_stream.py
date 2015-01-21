@@ -193,7 +193,8 @@ class Torrent2HttpStream(TorrentStream):
                                                                 status.upload_rate, status.num_seeds, status.num_peers)
                             player.get_percent()
 
-                        sleep(self.SLEEP_DELAY)
+                        # handling PLAYBACK_STOPPED and PLAYBACK_ENDED events
+                        sleep(1000)
         except Error as err:
             raise self._convert_engine_error(err)
         if status and file_status and status.state in [State.FINISHED, State.SEEDING]:

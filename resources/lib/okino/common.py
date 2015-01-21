@@ -83,12 +83,8 @@ class FileCopyingThread(threading.Thread):
         self.dst = dst
         self.delete = delete
         self.tmp = self.dst + ".part"
-        self.src_size = self._file_size(self.src)
-
-    @staticmethod
-    def _file_size(path):
-        with closing(xbmcvfs.File(path)) as f:
-            return f and f.size() or 0
+        self.copied = False
+        self.src_size = file_size(self.src)
 
     def run(self):
         log.info("Copying %s to %s...", self.src, self.dst)
@@ -97,6 +93,7 @@ class FileCopyingThread(threading.Thread):
         xbmcvfs.mkdirs(os.path.dirname(self.dst))
         if xbmcvfs.copy(self.src, self.tmp):
             log.info("Success.")
+            self.copied = True
             if xbmcvfs.rename(self.tmp, self.dst):
                 if self.delete and xbmcvfs.delete(self.src):
                     log.info("File %s deleted.", self.src)
@@ -107,36 +104,44 @@ class FileCopyingThread(threading.Thread):
             log.info("Failed.")
 
     def progress(self):
-        cur_size = self._file_size(self.tmp)
-        return self.src_size and cur_size*100/self.src_size or 0
+        if self.copied:
+            return 100
+        else:
+            cur_size = file_size(self.tmp)
+            return self.src_size and cur_size*100/self.src_size or 0
 
 
 class FileCopyThread(threading.Thread):
-    def __init__(self, src, dst, delete=False):
+    def __init__(self, files, delete=False, on_finish=None):
         super(FileCopyThread, self).__init__()
-        self.src = src
-        self.dst = dst
+        self.files = files
         self.delete = delete
+        self.on_finish = on_finish
 
     def run(self):
         progress = xbmcgui.DialogProgressBG()
         with closing(progress):
-            progress.create(lang(40319), os.path.basename(self.src))
-            copying_thread = FileCopyingThread(self.src, self.dst, self.delete)
-            copying_thread.start()
-            while copying_thread.is_alive():
-                xbmc.sleep(250)
-                progress.update(copying_thread.progress())
+            progress.create(lang(40319))
+            for src, dst in self.files.iteritems():
+                progress.update(0, message=src)
+                copying_thread = FileCopyingThread(src, dst, self.delete)
+                copying_thread.start()
+                while copying_thread.is_alive():
+                    xbmc.sleep(250)
+                    progress.update(copying_thread.progress())
+            if self.on_finish:
+                self.on_finish()
 
 
-def copy_file(src, dst, delete=False):
-    copying_thread = FileCopyThread(src, dst, delete)
+def copy_files(files, delete=False, on_finish=None):
+    copying_thread = FileCopyThread(files, delete, on_finish)
     copying_thread.start()
 
 
-def save_files(files, rename=False):
+def save_files(files, rename=False, on_finish=None):
     save = plugin.get_setting('save-files', int)
     if not save:
+        on_finish()
         return
     src, dst = temp_path(), save_path()
     files_dict = {}
@@ -150,7 +155,9 @@ def save_files(files, rename=False):
             continue
         files_dict[old_path] = new_path
     if not files_dict:
+        on_finish()
         return
+    files_to_copy = {}
     if save != 2 or xbmcgui.Dialog().yesno(lang(30000), *lang(40318).split("|")):
         for n, old_path in enumerate(files):
             if old_path not in files_dict:
@@ -161,11 +168,19 @@ def save_files(files, rename=False):
                 log.info("Renaming %s to %s...", old_path, new_path)
                 if not xbmcvfs.rename(old_path, new_path):
                     log.info("Renaming failed. Trying to copy and delete old file...")
-                    copy_file(old_path, new_path, delete=True)
+                    files_to_copy[old_path] = new_path
                 else:
                     log.info("Success.")
             else:
-                copy_file(old_path, new_path)
+                files_to_copy[old_path] = new_path
+    if files_to_copy:
+        copy_files(files_to_copy, delete=rename, on_finish=on_finish)
+    else:
+        on_finish()
+
+
+def file_size(path):
+    return xbmcvfs.Stat(path).st_size()
 
 
 def get_dir_size(directory):
@@ -173,7 +188,7 @@ def get_dir_size(directory):
     for (path, dirs, files) in os.walk(directory):
         for f in files:
             filename = os.path.join(path, f)
-            dir_size += os.path.getsize(filename)
+            dir_size += file_size(filename)
     return dir_size
 
 
@@ -181,10 +196,31 @@ def purge_temp_dir():
     path = temp_path()
     temp_size = get_dir_size(path)
     max_size = plugin.get_setting('temp-max-size', int)*1024*1024*1024
+    log.info("Current temporary folder size / Max size: %d / %d", temp_size, max_size)
     if temp_size > max_size:
+        log.info("Purging temporary folder...")
         shutil.rmtree(path, True)
-        if not os.path.isdir(path):
-            os.mkdir(path)
+        if not os.path.exists(path):
+            # noinspection PyBroadException
+            try:
+                os.mkdir(path)
+                log.info("New temporary folder size: %d", get_dir_size(path))
+            except Exception:
+                pass
+
+
+def get_free_space(folder):
+    """ Return folder/drive free space (in bytes)
+    """
+    import platform
+    import ctypes
+    if platform.system() == 'Windows':
+        free_bytes = ctypes.c_ulonglong(0)
+        ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(folder), None, None, ctypes.pointer(free_bytes))
+        return free_bytes.value/1024/1024
+    else:
+        st = os.statvfs(folder)
+        return st.f_bavail * st.f_frsize/1024/1024
 
 
 def str_to_date(date_string, date_format='%d.%m.%Y'):
