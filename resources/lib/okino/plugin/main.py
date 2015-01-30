@@ -7,7 +7,7 @@ from okino.plugin.common import with_fanart, itemify_file, itemify_folder, \
 from okino.enumerations import Section, Genre
 from okino.plugin.search import make_search
 from okino.plugin.contextmenu import toggle_watched_context_menu, bookmark_context_menu, \
-    download_torrent_context_menu, clear_history_context_menu
+    download_torrent_context_menu, clear_history_context_menu, library_context_menu
 from util.encoding import ensure_unicode
 
 import titleformat as tf
@@ -26,12 +26,13 @@ def play_file(media_id, url, title):
     title = u"%s / %s" % (ensure_unicode(title), item['info']['title'])
     item['info']['title'] = title
     history.add(media_id, details.section.name, title, plugin.request.url, url, details.poster)
+    history.storage.sync()
     torrent = container.torrent(url=url)
     player = container.player()
 
     def check_and_mark_watched(event):
         log.info("Playback event: %s, current player progress: %d", event, player.get_percent())
-        if player.get_percent() >= 90 and 'can_mark_watched' in plugin.request.args:
+        if player.get_percent() >= 90 and plugin.request.arg('can_mark_watched'):
             watched_items = container.watched_items()
             watched_items.mark(media_id, date_added=meta.get('date_added'),
                                total_size=meta.get('total_size'))
@@ -66,9 +67,10 @@ def show_folders(media_id):
         if len(f.files) == 1 and not meta.get('is_series'):
             item = itemify_file(f.files[0], can_mark_watched=1)
             item['label'] = tf.folder_file_title(f, f.files[0])
-            plugin.add_item(item)
         else:
-            plugin.add_item(itemify_folder(f))
+            item = itemify_folder(f)
+        item['context_menu'] += library_context_menu(media_id, f.id)
+        plugin.add_item(item)
     plugin.finish(sort_methods=['unsorted', 'title', 'duration', 'size'])
 
 
@@ -153,3 +155,9 @@ def index():
         'path': plugin.url_for('explore', section=s.name)
     } for s in Section)
     return with_fanart(items)
+
+
+@plugin.route('/update_library')
+def library_update():
+    from okino.library import update_library
+    update_library()

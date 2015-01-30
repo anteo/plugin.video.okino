@@ -144,9 +144,13 @@ class AbstractScraper:
         """
         return self.get_folders_bulk([media_id])[media_id]
 
-    def get_files_cached(self, media_id, folder_id):
+    def get_folder_cached(self, media_id, folder_id):
         folders = self.get_folders_cached(media_id)
-        return next((folder.files for folder in folders if folder.id == folder_id), [])
+        return next((folder for folder in folders if folder.id == folder_id), None)
+
+    def get_files_cached(self, media_id, folder_id):
+        folder = self.get_folder_cached(media_id, folder_id)
+        return folder and folder.files or []
 
 
 class OkinoScraper(AbstractScraper):
@@ -492,7 +496,6 @@ class OkinoScraper(AbstractScraper):
                     else:
                         self.log.warn('Torrent link is undefined')
                         warnings += 1
-                        continue
                     languages = None
                     video_quality = audio_quality = None
                     embedded_subtitles = external_subtitles = None

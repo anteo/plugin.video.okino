@@ -366,6 +366,12 @@
     <string id="40215">Watching history items count</string>
     <string id="40216">Search history items count</string>
 
+    <string id="40218">Library</string>
+    <string id="40217">Path to the library</string>
+    <string id="40220">Update the library now...</string>
+    <string id="40221">Auto-update XBMC library</string>
+    <string id="40222">Auto-clean XBMC library</string>
+
     <string id="40300">Movie information</string>
     <string id="40301">Mark as watched</string>
     <string id="40302">Mark as unwatched</string>
@@ -379,6 +385,8 @@
     <string id="40311">Delete search</string>
     <string id="40314">Download torrent</string>
     <string id="40315">Clear history</string>
+    <string id="40320">Add to library</string>
+    <string id="40321">Remove from library</string>
 
     <string id="40308">%s «%s» successfully added to bookmarks</string>
     <string id="40312">No results found for search «%s»</string>
@@ -387,5 +395,6 @@
     <string id="40317">Started torrent download.|Would you like to open %s plugin?</string>
     <string id="40318">Downloading finished. Do you want to save file?</string>
     <string id="40319">Copying...</string>
+    <string id="40322">Updating the library...</string>
 
 </strings>

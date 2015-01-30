@@ -176,6 +176,12 @@ def history():
     return HistoryItems(plugin.get_storage('history'), plugin.get_setting('history-items-count', int))
 
 
+@singleton
+def library_manager():
+    from okino.library import LibraryManager
+    return LibraryManager(plugin.get_setting('library-path', unicode), plugin.get_storage('library_items'))
+
+
 def search_storage():
     return plugin.get_storage('search')
 

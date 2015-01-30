@@ -20,20 +20,26 @@
         <setting type="bool" id="show-country" label="40211" default="true"/>
         <setting type="bool" id="show-rating" label="40212" default="true"/>
     </category>
+    <category label="40218">
+        <setting type="folder" id="library-path" label="40217" option="writeable" default="special://profile/addon_data/plugin.video.okino/library"/>
+        <setting type="bool" id="update-xbmc-library" label="40221" default="true"/>
+        <setting type="bool" id="clean-xbmc-library" label="40222" default="true"/>
+        <setting type="action" label="40220" action="RunPlugin(plugin://plugin.video.okino/update_library)" option="close"/>
+    </category>
     <category label="40100">
-        <setting type="enum" id="torrent-stream" label="40101" lvalues="40102|40103" default="0"/>
         <setting type="folder" id="temp-path" label="40112" option="writeable" default="special://profile/addon_data/plugin.video.okino/temp"/>
-        <setting type="lsep" label="40117" />
         <setting type="slider" id="temp-max-size" label="40113" default="5" range="1,1,25" option="int"/>
-        <setting type="number" id="t2h-listen-port" label="40104" visible="eq(-4,0)" default="6881" enable="eq(1,false)"/>
-        <setting type="bool" id="t2h-use-random-port" label="40105" visible="eq(-5,0)"/>
-        <setting type="slider" id="t2h-pre-buffer-mb" label="40111" visible="eq(-6,0)" default="15" range="5,5,50" option="int"/>
+        <setting type="lsep" label="40117" />
+        <setting type="enum" id="torrent-stream" label="40101" lvalues="40102|40103" default="0"/>
+        <setting type="number" id="t2h-listen-port" label="40104" visible="eq(-1,0)" default="6881" enable="eq(1,false)"/>
+        <setting type="bool" id="t2h-use-random-port" label="40105" visible="eq(-2,0)"/>
+        <setting type="slider" id="t2h-pre-buffer-mb" label="40111" visible="eq(-3,0)" default="15" range="5,5,50" option="int"/>
         <setting type="number" id="t2h-max-connections" label="40106" visible="false"/>
         <setting type="number" id="t2h-download-rate" label="40107" visible="false"/>
         <setting type="number" id="t2h-upload-rate" label="40108" visible="false"/>
-        <setting type="bool" id="t2h-debug-mode" label="40109" visible="eq(-10,0)"/>
-        <setting type="ipaddress" id="as-host" label="40007" visible="eq(-11,1)" default="127.0.0.1"/>
-        <setting type="number" id="as-port" label="40008" visible="eq(-12,1)" default="62062"/>
+        <setting type="bool" id="t2h-debug-mode" label="40109" visible="eq(-7,0)"/>
+        <setting type="ipaddress" id="as-host" label="40007" visible="eq(-8,1)" default="127.0.0.1"/>
+        <setting type="number" id="as-port" label="40008" visible="eq(-9,1)" default="62062"/>
     </category>
     <category label="40000">
         <setting type="enum" id="torrent-client" label="40001" lvalues="40002|40003|40004" default="0"/>

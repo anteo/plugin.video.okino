@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 from okino import container as container
 from okino.plugin import plugin
-from okino.common import lang, notify, save_path
-from okino.enumerations import Section
-from util.encoding import ensure_unicode, ensure_str
+from okino.common import lang, save_path
+from util.encoding import ensure_str
 from okino.torrent.client import *
-from xbmcswift2 import actions, xbmcgui, xbmc, xbmcaddon
+from xbmcswift2 import actions, xbmcgui, xbmc
 
 
 @plugin.route('/mark/watched/<media_id>')
@@ -58,7 +57,7 @@ def refresh(media_id):
 def add_bookmark(section, media_id, title):
     bookmarks = container.bookmarks()
     bookmarks.add(media_id, section)
-    notify(lang(40308) % (Section.find(section).singular.localized, ensure_unicode(title)))
+    # notify(lang(40308) % (Section.find(section).singular.localized, ensure_unicode(title)))
     plugin.refresh()
 
 
@@ -67,6 +66,26 @@ def delete_bookmark(media_id):
     bookmarks = container.bookmarks()
     bookmarks.delete(media_id)
     plugin.refresh()
+
+
+@plugin.route('/library/add/<media_id>/<folder_id>')
+def add_to_library(media_id, folder_id):
+    scraper = container.scraper()
+    details = scraper.get_details_cached(media_id)
+    folder = scraper.get_folder_cached(media_id, folder_id)
+    library_manager = container.library_manager()
+    library_manager.update_folder(details, folder)
+    plugin.refresh()
+    if plugin.get_setting('update-xbmc-library', bool):
+        plugin.update_library('video', library_manager.path)
+
+
+@plugin.route('/library/remove/<folder_id>')
+def remove_from_library(folder_id):
+    container.library_manager().remove_folder(folder_id)
+    plugin.refresh()
+    if plugin.get_setting('clean-xbmc-library', bool):
+        plugin.clean_library('video', False)
 
 
 def info_context_menu():
@@ -136,7 +155,7 @@ def download_torrent(url):
 
 
 def download_torrent_context_menu(url):
-    if container.torrent_client():
+    if container.torrent_client() and url:
         return [(lang(40314), actions.background(plugin.url_for('download_torrent', url=url)))]
     else:
         return []
@@ -144,3 +163,14 @@ def download_torrent_context_menu(url):
 
 def clear_history_context_menu():
     return [(lang(40315), actions.background(plugin.url_for('clear_history')))]
+
+
+def library_context_menu(media_id, folder_id):
+    library_manager = container.library_manager()
+    if library_manager.has_folder(folder_id):
+        return [(lang(40321), actions.background(plugin.url_for('remove_from_library',
+                                                                folder_id=folder_id)))]
+    else:
+        return [(lang(40320), actions.background(plugin.url_for('add_to_library',
+                                                                media_id=media_id,
+                                                                folder_id=folder_id)))]

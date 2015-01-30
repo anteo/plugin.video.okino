@@ -62,10 +62,10 @@ class OrderDirection(Attribute):
 
 
 class Section(Attribute):
-    MOVIES = (10, 'movie')
-    SERIES = (20, 'series')
-    CARTOONS = (30, 'animation')
-    ANIMATED_SERIES = (40, 'animseries')
+    MOVIES = (10, 'movie', 'Movies')
+    SERIES = (20, 'series', 'Series')
+    CARTOONS = (30, 'animation', 'Cartoons')
+    ANIMATED_SERIES = (40, 'animseries', 'Animated Series')
 
     # noinspection PyUnusedLocal
     def __init__(self, *args):
@@ -79,6 +79,10 @@ class Section(Attribute):
         c = copy(self)
         c.lang_base = 31040
         return c
+
+    @property
+    def folder_name(self):
+        return self.value[2]
 
     def is_series(self):
         return self in [Section.SERIES, Section.ANIMATED_SERIES]
