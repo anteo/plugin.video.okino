@@ -43,15 +43,15 @@ def edit_advanced_search(param):
     elif param == 'genre':
         genres = sorted(Genre.all())
         res = xbmcgui.Dialog().select(lang(34103), [lang(34101)] + [g.localized for g in genres])
-        sf.genres = [genres[res-1]] if res else None
+        sf.genres = [genres[res-1]] if res else []
     elif param == 'country':
         countries = sorted(Country.all())
         res = xbmcgui.Dialog().select(lang(34104), [lang(34101)] + [g.localized for g in countries])
-        sf.countries = [countries[res-1]] if res else None
+        sf.countries = [countries[res-1]] if res else []
     elif param == 'language':
         languages = sorted(Language.all())
         res = xbmcgui.Dialog().select(lang(34105), [lang(34101)] + [g.localized for g in languages])
-        sf.languages = [languages[res-1]] if res else None
+        sf.languages = [languages[res-1]] if res else []
     elif param == 'audio_quality':
         qualities = AudioQuality.all()
         res = xbmcgui.Dialog().select(lang(34106), [lang(34101)] + [g.localized for g in qualities])
