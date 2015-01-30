@@ -7,6 +7,7 @@
     :copyright: (c) 2012 by Jonathan Beluch
     :license: GPLv3, see LICENSE for more details.
 """
+import sys
 import urllib
 import urllib2
 try:
@@ -172,3 +173,16 @@ def ensure_str(string, encoding='utf-8'):
     if not isinstance(string, str):
         string = str(string)
     return string
+
+
+def ensure_fs_encoding(string):
+    string = ensure_unicode(string)
+    return string.encode(sys.getfilesystemencoding() or 'utf-8')
+
+
+def direxists(path):
+    import os
+    from xbmcswift2 import xbmcvfs
+    if not path.endswith("/") and not path.endswith("\\"):
+        path += os.sep
+    return xbmcvfs.exists(path)

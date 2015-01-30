@@ -134,6 +134,7 @@ class XBMCMixin(object):
             try:
                 storage = TimedStorage(filename, file_format, ttl)
             except ValueError:
+                log.warning('Storage "%s" corrupted', name, exc_info=1)
                 # Thrown when the storage file is corrupted and can't be read.
                 # Prompt user to delete storage.
                 choices = ['Clear storage', 'Cancel']
@@ -265,6 +266,22 @@ class XBMCMixin(object):
         """Calls XBMC's Container.SetViewMode. Requires an integer
         view_mode_id"""
         xbmc.executebuiltin('Container.SetViewMode(%d)' % view_mode_id)
+
+    @staticmethod
+    def escape_param(s):
+        escaped = s.replace('\\', '\\\\').replace('"', '\\"')
+        return '"' + escaped + '"'
+
+    @staticmethod
+    def update_library(library, path="", popup=True):
+        if isinstance(path, unicode):
+            path = path.encode('utf-8')
+        path = xbmc.translatePath(path)
+        xbmc.executebuiltin('UpdateLibrary(%s,%s,%s)' % (library, XBMCMixin.escape_param(path), popup))
+
+    @staticmethod
+    def clean_library(library, popup=True):
+        xbmc.executebuiltin('CleanLibrary(%s,%s)' % (library, popup))
 
     @staticmethod
     def update_listing(url, replace=False):

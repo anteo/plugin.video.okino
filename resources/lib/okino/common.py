@@ -10,7 +10,7 @@ import threading
 from util.causedexception import CausedException
 from util.enum import Enum
 from util.ordereddict import OrderedDict
-from xbmcswift2 import CLI_MODE, xbmc, xbmcvfs, xbmcgui
+from xbmcswift2 import CLI_MODE, xbmc, xbmcvfs, xbmcgui, direxists, ensure_unicode, ensure_fs_encoding
 from contextlib import closing
 from plugin import plugin
 
@@ -48,11 +48,11 @@ def save_path(local=False):
     if path == plugin.get_setting('temp-path', unicode):
         raise LocalizedError(33032, "Path for downloaded files and temporary path should not be the same",
                              check_settings=True)
-    if not xbmcvfs.exists(path):
+    if not direxists(path):
         raise LocalizedError(33031, "Invalid save path", check_settings=True)
     if local:
         path = ensure_path_local(path)
-    return path
+    return ensure_unicode(path)
 
 
 def ensure_path_local(path):
@@ -63,16 +63,13 @@ def ensure_path_local(path):
         else:
             raise LocalizedError(33030, "Downloading to an unmounted network share is not supported",
                                  check_settings=True)
-    return path
+    return ensure_unicode(path)
 
 
 def temp_path():
     path = ensure_path_local(plugin.get_setting('temp-path', unicode))
-    if not os.path.isdir(path):
-        try:
-            os.mkdir(path)
-        except OSError:
-            raise LocalizedError(33030, "Invalid temporary path", check_settings=True)
+    if not direxists(path) and not xbmcvfs.mkdirs(path):
+        raise LocalizedError(33030, "Invalid temporary path", check_settings=True)
     return path
 
 
@@ -87,10 +84,11 @@ class FileCopyingThread(threading.Thread):
         self.src_size = file_size(self.src)
 
     def run(self):
-        log.info("Copying %s to %s...", self.src, self.dst)
         if xbmcvfs.exists(self.dst):
             xbmcvfs.delete(self.dst)
         xbmcvfs.mkdirs(os.path.dirname(self.dst))
+        log.info("Copying %s to %s...", self.src, self.dst)
+        xbmcvfs.delete(self.tmp)
         if xbmcvfs.copy(self.src, self.tmp):
             log.info("Success.")
             self.copied = True
@@ -101,13 +99,13 @@ class FileCopyingThread(threading.Thread):
                 log.info("Renaming %s to %s failed.", self.tmp, self.dst)
                 xbmcvfs.delete(self.tmp)
         else:
-            log.info("Failed.")
+            log.info("Failed")
 
     def progress(self):
         if self.copied:
             return 100
         else:
-            cur_size = file_size(self.tmp)
+            cur_size = xbmcvfs.exists(self.tmp) and file_size(self.tmp) or 0
             return self.src_size and cur_size*100/self.src_size or 0
 
 
@@ -127,7 +125,7 @@ class FileCopyThread(threading.Thread):
                 copying_thread = FileCopyingThread(src, dst, self.delete)
                 copying_thread.start()
                 while copying_thread.is_alive():
-                    xbmc.sleep(250)
+                    sleep(250)
                     progress.update(copying_thread.progress())
             if self.on_finish:
                 self.on_finish()
@@ -146,6 +144,7 @@ def save_files(files, rename=False, on_finish=None):
     src, dst = temp_path(), save_path()
     files_dict = {}
     for old_path in files:
+        old_path = ensure_unicode(old_path)
         rel_path = os.path.relpath(old_path, src)
         new_path = os.path.join(dst, rel_path)
         if xbmcvfs.exists(new_path):
@@ -155,11 +154,13 @@ def save_files(files, rename=False, on_finish=None):
             continue
         files_dict[old_path] = new_path
     if not files_dict:
-        on_finish()
+        if on_finish:
+            on_finish()
         return
     files_to_copy = {}
     if save != 2 or xbmcgui.Dialog().yesno(lang(30000), *lang(40318).split("|")):
         for n, old_path in enumerate(files):
+            old_path = ensure_unicode(old_path)
             if old_path not in files_dict:
                 continue
             new_path = files_dict[old_path]
@@ -175,7 +176,7 @@ def save_files(files, rename=False, on_finish=None):
                 files_to_copy[old_path] = new_path
     if files_to_copy:
         copy_files(files_to_copy, delete=rename, on_finish=on_finish)
-    else:
+    elif on_finish:
         on_finish()
 
 
@@ -183,9 +184,22 @@ def file_size(path):
     return xbmcvfs.Stat(path).st_size()
 
 
+def dirwalk(top, topdown=True):
+    dirs, nondirs = xbmcvfs.listdir(top)
+
+    if topdown:
+        yield top, dirs, nondirs
+    for name in dirs:
+        new_path = os.path.join(top, name)
+        for x in dirwalk(new_path, topdown):
+            yield x
+    if not topdown:
+        yield top, dirs, nondirs
+
+
 def get_dir_size(directory):
     dir_size = 0
-    for (path, dirs, files) in os.walk(directory):
+    for (path, dirs, files) in dirwalk(directory):
         for f in files:
             filename = os.path.join(path, f)
             dir_size += file_size(filename)
@@ -200,13 +214,10 @@ def purge_temp_dir():
     if temp_size > max_size:
         log.info("Purging temporary folder...")
         shutil.rmtree(path, True)
-        if not os.path.exists(path):
+        if not direxists(path):
             # noinspection PyBroadException
-            try:
-                os.mkdir(path)
+            if xbmcvfs.mkdirs(path):
                 log.info("New temporary folder size: %d", get_dir_size(path))
-            except Exception:
-                pass
 
 
 def get_free_space(folder):

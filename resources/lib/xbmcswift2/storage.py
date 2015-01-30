@@ -22,6 +22,7 @@ import collections
 import tempfile
 from datetime import datetime
 from xbmcswift2.logger import log
+from xbmcswift2.common import ensure_fs_encoding
 
 
 class _PersistentDictMixin(object):
@@ -41,11 +42,11 @@ class _PersistentDictMixin(object):
         self.flag = flag  # r=readonly, c=create, or n=new
         self.mode = mode  # None or an octal triple like 0644
         self.file_format = file_format  # 'csv', 'json', or 'pickle'
-        self.filename = filename
-        if flag != 'n' and os.access(filename, os.R_OK):
+        self.filename = ensure_fs_encoding(filename)
+        if flag != 'n' and os.access(self.filename, os.R_OK):
             log.debug('Reading %s storage from disk at "%s"',
                       self.file_format, self.filename)
-            fileobj = open(filename, 'rb' if file_format == 'pickle' else 'r')
+            fileobj = open(self.filename, 'rb' if file_format == 'pickle' else 'r')
             with fileobj:
                 self.load(fileobj)
 
@@ -68,9 +69,9 @@ class _PersistentDictMixin(object):
             raise e
         finally:
             fileobj.close()
-        shutil.move(fileobj.name, self.filename)  # atomic commit
+        shutil.move(fileobj.name, filename)  # atomic commit
         if self.mode is not None:
-            os.chmod(self.filename, self.mode)
+            os.chmod(filename, self.mode)
 
     def close(self):
         """Calls sync"""

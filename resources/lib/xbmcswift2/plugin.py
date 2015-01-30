@@ -19,7 +19,7 @@ except ImportError:
 
 from logger import log, setup_log
 from urls import UrlRule, NotFoundException, AmbiguousUrlException
-from xbmcswift2 import xbmc, xbmcaddon, Request
+from xbmcswift2 import xbmc, xbmcaddon, Request, xbmcvfs, direxists
 from xbmcmixin import XBMCMixin
 
 
@@ -96,9 +96,9 @@ class Plugin(XBMCMixin):
         self._log = setup_log(self._addon_id)
 
         # The path to the storage directory for the addon
-        self._storage_path = self.addon_data_path(".storage")
-        if not os.path.isdir(self._storage_path):
-            os.makedirs(self._storage_path)
+        self._storage_path = self.addon_data_path(".storage/")
+        if not direxists(self._storage_path):
+            xbmcvfs.mkdirs(self._storage_path)
 
         # If we are runing in CLI, we need to load the strings.xml manually
         # Since xbmcswift2 currently relies on execution from an addon's root
