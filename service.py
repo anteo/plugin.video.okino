@@ -10,6 +10,7 @@ from okino.common import sleep, abort_requested
 from okino.library import update_library
 from okino.plugin import plugin
 from xbmcswift2 import xbmc
+import okino.plugin.main
 
 
 if __name__ == '__main__':
