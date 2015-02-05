@@ -81,7 +81,7 @@ class AbstractScraper:
         raise NotImplementedError()
 
     def search_cached(self, search_filter=None, skip=None):
-        key = (search_filter, skip)
+        key = hash((search_filter, skip))
         if key not in self.search_cache:
             self.search_cache[key] = (self.search(search_filter, skip), self.has_more)
         res, self.has_more = self.search_cache[key]
@@ -91,8 +91,9 @@ class AbstractScraper:
         """
         :rtype : dict[int, Details]
         """
-        not_cached_ids = [_id for _id in media_ids if _id not in self.details_cache]
-        results = dict((_id, self.details_cache[_id]) for _id in media_ids if _id in self.details_cache)
+        cached_details = self.details_cache.keys()
+        not_cached_ids = [_id for _id in media_ids if str(_id) not in cached_details]
+        results = dict((_id, self.details_cache[_id]) for _id in media_ids if str(_id) in cached_details)
         with Timer(logger=self.log, name="Bulk fetching"):
             try:
                 with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
@@ -115,8 +116,9 @@ class AbstractScraper:
         """
         :rtype : dict[int, list[Folder]]
         """
-        not_cached_ids = [_id for _id in media_ids if _id not in self.folders_cache]
-        results = dict((_id, self.folders_cache[_id]) for _id in media_ids if _id in self.folders_cache)
+        cached_folders = self.folders_cache.keys()
+        not_cached_ids = [_id for _id in media_ids if str(_id) not in cached_folders]
+        results = dict((_id, self.folders_cache[_id]) for _id in media_ids if str(_id) in cached_folders)
         with Timer(logger=self.log, name="Bulk fetching"):
             try:
                 with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
@@ -125,7 +127,7 @@ class AbstractScraper:
                     for future in as_completed(folder_futures, self.timeout):
                         result = future.result()
                         _id = folder_futures[future]
-                        self.folders_cache[_id] = results[_id] = result
+                        results[_id] = result
                         if len(result) > 1:
                             files_futures.update(dict((executor.submit(self.get_files, _id, f.id), (_id, i))
                                                       for i, f in enumerate(result)))
@@ -134,6 +136,7 @@ class AbstractScraper:
                         result = future.result()
                         _id, i = files_futures[future]
                         results[_id][i].files.extend(result)
+                        self.folders_cache[_id] = results[_id]
             except TimeoutError as e:
                 raise ScraperError(32000, "Timeout while fetching URLs", cause=e)
         return results

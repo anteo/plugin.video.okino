@@ -26,7 +26,7 @@ except ImportError:
     from xbmcswift2.mockxbmc import xbmc, xbmcgui, xbmcplugin, xbmcaddon, xbmcvfs
 
 
-from xbmcswift2.storage import TimedStorage
+from xbmcswift2.storage import Storage
 from xbmcswift2.request import Request
 from xbmcswift2.common import (xbmc_url, enum, clean_dict, pickle_dict,
                                unpickle_args, unpickle_dict, download_page, unhex,

@@ -89,7 +89,7 @@ def edit_advanced_search(param):
         dirs = OrderDirection.all()
         res = xbmcgui.Dialog().select(lang(34115), [g.localized for g in dirs])
         sf.order_dir = OrderDirection.DESC if res == 1 else None
-
+    storage['search_filter'] = sf
 
 
 @plugin.route('/advanced_search/<section>')
@@ -100,7 +100,7 @@ def advanced_search(section):
     items = [{
         'label': lang(34102),
         'path': plugin.url_for('do_advanced_search', section=section),
-    },{
+    }, {
         'label': lang(34111),
         'path': plugin.url_for('clear_advanced_search'),
     }, {
@@ -143,5 +143,4 @@ def advanced_search(section):
         'label': tf.color(lang(34115), 'white') + ": " + (OrderDirection.DESC.localized if sf.order_dir else OrderDirection.ASC.localized),
         'path': plugin.url_for('edit_advanced_search', param='order_dir')
     }]
-
     plugin.finish(with_fanart(items), cache_to_disc=False)

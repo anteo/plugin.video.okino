@@ -2,6 +2,11 @@
 # Classes and functions to work with files and folders.
 #
 
+import os
+import shutil
+from xbmcswift2.common import ensure_fs_encoding
+from xbmcswift2.logger import log
+
 
 # noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming
 class File(object):
@@ -77,7 +82,7 @@ class File(object):
         pass
 
 
-# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming
+# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming,PyBroadException
 def copy(source, destination):
     """Copy file to destination, returns true/false.
 
@@ -86,10 +91,15 @@ def copy(source, destination):
 
     Example:
         success = xbmcvfs.copy(source, destination)"""
-    return True
+    try:
+        shutil.copy(ensure_fs_encoding(source), ensure_fs_encoding(destination))
+        return True
+    except:
+        log.warning("Can't copy %s to %s", file, destination, exc_info=True)
+        return False
 
 
-# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming
+# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming,PyBroadException
 def delete(file):
     """Deletes a file.
 
@@ -97,7 +107,12 @@ def delete(file):
 
     Example:
         xbmcvfs.delete(file)"""
-    return True
+    try:
+        os.remove(ensure_fs_encoding(file))
+        return True
+    except:
+        log.warning("Can't remove %s", file, exc_info=True)
+        return False
 
 
 # noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming
@@ -112,7 +127,7 @@ def rename(file, newFileName):
     return True
 
 
-# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming
+# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming,PyBroadException
 def mkdir(path):
     """Create a folder.
 
@@ -121,10 +136,15 @@ def mkdir(path):
     Example:
         success = xbmcfvs.mkdir(path)
     """
-    return True
+    try:
+        os.mkdir(ensure_fs_encoding(path))
+        return True
+    except:
+        log.warning("Can't mkdir %s", path, exc_info=True)
+        return False
 
 
-# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming
+# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming,PyBroadException
 def mkdirs(path):
     """
     mkdirs(path)--Create folder(s) - it will create all folders in the path.
@@ -135,10 +155,15 @@ def mkdirs(path):
 
     - success = xbmcvfs.mkdirs(path)
     """
-    return True
+    try:
+        os.makedirs(ensure_fs_encoding(path))
+        return True
+    except:
+        log.warning("Can't makedirs %s", path, exc_info=True)
+        return False
 
 
-# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming
+# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming,PyBroadException
 def rmdir(path):
     """Remove a folder.
 
@@ -147,10 +172,15 @@ def rmdir(path):
     Example:
         success = xbmcfvs.rmdir(path)
     """
-    return True
+    try:
+        os.rmdir(ensure_fs_encoding(path))
+        return True
+    except:
+        log.warning("Can't rmdir %s", path, exc_info=True)
+        return False
 
 
-# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming
+# noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming,PyBroadException
 def exists(path):
     """Checks for a file or folder existance, mimics Pythons os.path.exists()
 
@@ -158,7 +188,10 @@ def exists(path):
 
     Example:
         success = xbmcvfs.exists(path)"""
-    return True
+    try:
+        return os.path.exists(ensure_fs_encoding(path))
+    except:
+        return False
 
 
 # noinspection PyUnusedLocal,PyMethodMayBeStatic,PyShadowingBuiltins,PyPep8Naming

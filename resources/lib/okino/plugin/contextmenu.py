@@ -11,7 +11,7 @@ from xbmcswift2 import actions, xbmcgui, xbmc
 def mark_watched(media_id):
     meta_cache = container.meta_cache()
     watched_items = container.watched_items()
-    meta = meta_cache.setdefault(media_id, {})
+    meta = meta_cache.get(media_id, {})
     total_size = meta.get('total_size')
     date_added = meta.get('date_added')
     if total_size is None:
@@ -19,6 +19,7 @@ def mark_watched(media_id):
         folders = scraper.get_folders_cached(media_id)
         total_size = sum(f.size for f in folders)
         meta['total_size'] = total_size
+        meta_cache[media_id] = meta
     watched_items.mark(media_id, True, date_added=date_added, total_size=total_size)
     plugin.refresh()
 

@@ -12,15 +12,17 @@ from xbmcswift2 import actions
 @plugin.route('/search/clear')
 def clear_search_history():
     storage = container.search_storage()
-    del storage['recent']
+    del storage['search_recent']
     plugin.refresh()
 
 
 @plugin.route('/search/delete/<name>')
 def delete_search(name):
     storage = container.search_storage()
-    if 'recent' in storage:
-        storage['recent'].remove(str(name))
+    if 'search_recent' in storage:
+        recent = storage['search_recent']
+        recent.remove(str(name))
+        storage['search_recent'] = recent
     plugin.refresh()
 
 
@@ -46,10 +48,11 @@ def do_search(section, name):
         notify(lang(40312) % ensure_unicode(name))
     elif plugin.request.arg('new'):
         storage = container.search_storage()
-        recent = storage.setdefault('recent', [])
+        recent = storage.get('search_recent', [])
         if name in recent:
             recent.remove(name)
         recent.append(name)
+        storage['search_recent'] = recent
         count = plugin.get_setting('search-items-count', int)
         if len(recent) > count:
             del recent[:len(recent)-count]
@@ -75,7 +78,7 @@ def search_index(section):
         'context_menu': context_menu,
         'replace_context_menu': True,
     }]
-    if 'recent' in storage:
+    if 'search_recent' in storage:
         items.extend([{
             'label': s,
             'path': plugin.url_for('do_search', section=section, name=s),
@@ -83,7 +86,7 @@ def search_index(section):
                 (lang(40311), actions.background(plugin.url_for('delete_search', name=s)))
             ],
             'replace_context_menu': True,
-        } for s in reversed(storage['recent'])])
+        } for s in reversed(storage['search_recent'])])
     plugin.finish(with_fanart(items))
 
 

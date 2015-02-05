@@ -19,7 +19,7 @@ except ImportError:
 
 from logger import log, setup_log
 from urls import UrlRule, NotFoundException, AmbiguousUrlException
-from xbmcswift2 import xbmc, xbmcaddon, Request, xbmcvfs, direxists
+from xbmcswift2 import xbmc, xbmcaddon, Request, xbmcvfs
 from xbmcmixin import XBMCMixin
 
 
@@ -97,6 +97,7 @@ class Plugin(XBMCMixin):
 
         # The path to the storage directory for the addon
         self._storage_path = self.addon_data_path(".storage/")
+        from xbmcswift2.common import direxists
         if not direxists(self._storage_path):
             xbmcvfs.mkdirs(self._storage_path)
 
@@ -323,17 +324,20 @@ class Plugin(XBMCMixin):
     def addon_data_path(self, path=""):
         return os.path.join(xbmc.translatePath('special://profile/addon_data/%s/' % self._addon_id), path)
 
+    def close_storages(self):
+        # Close any open storages which will persist them to disk
+        if hasattr(self, '_unsynced_storages'):
+            for storage in self._unsynced_storages.values():
+                log.debug('Saving a storage to disk at "%s"',
+                          storage.filename)
+                storage.commit()
+                storage.close()
+            del self._unsynced_storages
+
     def run(self):
         """The main entry point for a plugin."""
         self._request = self._parse_request()
         log.debug('Handling incoming request for %s', self.request.path)
         items = self._dispatch(self.request.path)
-
-        # Close any open storages which will persist them to disk
-        if hasattr(self, '_unsynced_storages'):
-            for storage in self._unsynced_storages.values():
-                log.debug('Saving a %s storage to disk at "%s"',
-                          storage.file_format, storage.filename)
-                storage.close()
-
+        self.close_storages()
         return items

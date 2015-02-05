@@ -7,75 +7,100 @@
     :copyright: (c) 2012 by Jonathan Beluch
     :license: GPLv3, see LICENSE for more details.
 """
+import sys
+import sqlite3
 import os
-import csv
-import json
-import time
+
+from xbmcswift2.common import ensure_fs_encoding
+from xbmcswift2.logger import log
+from UserDict import DictMixin
 
 try:
-    # noinspection PyPep8Naming
-    import cPickle as pickle
+    from cPickle import dumps, loads
 except ImportError:
-    import pickle
-import shutil
-import collections
-import tempfile
-from datetime import datetime
-from xbmcswift2.logger import log
-from xbmcswift2.common import ensure_fs_encoding
+    from pickle import dumps, loads
 
 
-class _PersistentDictMixin(object):
-    """ Persistent dictionary with an API compatible with shelve and anydbm.
+def encode(obj):
+    """Serialize an object using pickle to a binary format accepted by SQLite."""
+    return sqlite3.Binary(dumps(obj))
 
-    The dict is kept in memory, so the dictionary operations run as fast as
-    a regular dictionary.
 
-    Write to disk is delayed until close or sync (similar to gdbm's fast mode).
+def decode(obj):
+    """Deserialize objects retrieved from SQLite."""
+    return loads(bytes(obj))
 
-    Input file format is automatically discovered.
-    Output file format is selectable between pickle, json, and csv.
-    All three serialization formats are backed by fast C implementations.
-    """
 
-    def __init__(self, filename, flag='c', mode=None, file_format='pickle'):
-        self.flag = flag  # r=readonly, c=create, or n=new
-        self.mode = mode  # None or an octal triple like 0644
-        self.file_format = file_format  # 'csv', 'json', or 'pickle'
-        self.filename = ensure_fs_encoding(filename)
-        if flag != 'n' and os.access(self.filename, os.R_OK):
-            log.debug('Reading %s storage from disk at "%s"',
-                      self.file_format, self.filename)
-            fileobj = open(self.filename, 'rb' if file_format == 'pickle' else 'r')
-            with fileobj:
-                self.load(fileobj)
+class Storage(DictMixin):
+    """A dict with the ability to persist to disk and TTL for items."""
 
-    def sync(self):
-        """Write the dict to disk"""
-        if self.flag == 'r':
-            return
-        filename = self.filename
-        fileobj = tempfile.NamedTemporaryFile('wb' if self.file_format == 'pickle' else 'w',
-                                              dir=os.path.dirname(filename), delete=False,
-                                              prefix=os.path.basename(filename)+".")
+    CREATE_TABLE = 'CREATE TABLE IF NOT EXISTS %s (key TEXT PRIMARY KEY, value BLOB, expire DATETIME)'
+    CREATE_INDEX = 'CREATE INDEX IF NOT EXISTS expire ON %s (expire)'
+    GET_LEN = 'SELECT COUNT(*) FROM %s WHERE (expire IS NULL OR expire >= DATETIME("NOW"))'
+    GET_MAX = 'SELECT MAX(ROWID) FROM %s WHERE (expire IS NULL OR expire >= DATETIME("NOW"))'
+    GET_KEYS = 'SELECT key FROM %s WHERE (expire IS NULL OR expire >= DATETIME("NOW")) ORDER BY rowid'
+    GET_VALUES = 'SELECT value FROM %s WHERE (expire IS NULL OR expire >= DATETIME("NOW")) ORDER BY rowid'
+    GET_ITEMS = 'SELECT key, value FROM %s WHERE (expire IS NULL OR expire >= DATETIME("NOW")) ORDER BY rowid '
+    HAS_ITEM = 'SELECT 1 FROM %s WHERE key = ? AND (expire IS NULL OR expire >= DATETIME("NOW"))'
+    GET_ITEM = 'SELECT value FROM %s WHERE key = ? AND (expire IS NULL OR expire >= DATETIME("NOW"))'
+    ADD_ITEM_NO_TTL = 'REPLACE INTO %s (key, value, expire) VALUES (?, ?, NULL)'
+    ADD_ITEM_TTL = 'REPLACE INTO %s (key, value, expire) VALUES (?, ?, DATETIME("NOW", "+%d SECONDS"))'
+    DEL_ITEM = 'DELETE FROM %s WHERE key = ?'
+    CLEAR_ALL = 'DELETE FROM %s'
+    PURGE_ALL = 'DELETE FROM %s WHERE expire < DATETIME("NOW")'
+
+    def __init__(self, filename, tablename="unnamed", flag="c", ttl=None):
+        """
+        Initialize a thread-safe sqlite-backed dictionary. The dictionary will
+        be a table `tablename` in database file `filename`. A single file (=database)
+        may contain multiple tables.
+        If no `filename` is given, a random file in temp will be used (and deleted
+        from temp once the dict is closed/deleted).
+        If you enable `autocommit`, changes will be committed after each operation
+        (more inefficient but safer). Otherwise, changes are committed on `self.commit()`,
+        `self.clear()` and `self.close()`.
+        Set `journal_mode` to 'OFF' if you're experiencing sqlite I/O problems
+        or if you need performance and don't care about crash-consistency.
+        The `flag` parameter:
+          'c': default mode, open for read/write, creating the db/table if necessary.
+          'w': open for r/w, but drop `tablename` contents first (start with empty table)
+          'n': create a new database (erasing any existing tables, not just `tablename`!).
+
+        TTL if provided should be in seconds.
+        """
+        self.ttl = ttl
+        self.filename = filename
+        filename = ensure_fs_encoding(filename)
+        if flag == 'n':
+            if os.path.exists(filename):
+                os.remove(filename)
+
+        dirname = os.path.dirname(filename)
+        if dirname and not os.path.exists(dirname):
+            raise RuntimeError('Error! The directory does not exist, %s' % self.filename)
+
+        self.tablename = tablename
+
+        log.debug("Opening Sqlite table %r in %s" % (tablename, self.filename))
+        self.conn = sqlite3.connect(self.filename)
         try:
-            self.dump(fileobj)
-        except Exception as e:
-            # noinspection PyBroadException
-            try:
-                os.remove(fileobj.name)
-            except:
-                pass
-            raise e
-        finally:
-            fileobj.close()
-        shutil.move(fileobj.name, filename)  # atomic commit
-        if self.mode is not None:
-            os.chmod(filename, self.mode)
+            self._execute(self.CREATE_TABLE % self.tablename)
+            self._execute(self.CREATE_INDEX % self.tablename)
+            self.conn.commit()
+            if flag == 'w':
+                self.clear()
+        except sqlite3.DatabaseError:
+            self.close()
+            raise
 
-    def close(self):
-        """Calls sync"""
-        self.sync()
+    def _execute(self, sql, params=()):
+        c = self.conn.cursor()
+        if params:
+            log.debug("%s ? %s", sql, params)
+        else:
+            log.debug(sql)
+        c.execute(sql, params)
+        return c
 
     def __enter__(self):
         return self
@@ -84,109 +109,146 @@ class _PersistentDictMixin(object):
     def __exit__(self, *exc_info):
         self.close()
 
-    def dump(self, fileobj):
-        """Handles the writing of the dict to the file object"""
-        if self.file_format == 'csv':
-            csv.writer(fileobj).writerows(self.raw_dict().items())
-        elif self.file_format == 'json':
-            json.dump(self.raw_dict(), fileobj, separators=(',', ':'))
-        elif self.file_format == 'pickle':
-            pickle.dump(dict(self.raw_dict()), fileobj, 2)
-        else:
-            raise NotImplementedError('Unknown format: ' +
-                                      repr(self.file_format))
+    def __str__(self):
+        return "Storage(%s)" % self.filename
 
-    def load(self, fileobj):
-        """Load the dict from the file object"""
-        # try formats from most restrictive to least restrictive
-        for loader in (pickle.load, json.load, csv.reader):
-            fileobj.seek(0)
-            if hasattr(self, "initial_update"):
-                return self.initial_update(loader(fileobj))
-        raise ValueError('File not in a supported format')
-
-    def raw_dict(self):
-        """Returns the underlying dict"""
-        raise NotImplementedError
-
-
-class _Storage(collections.MutableMapping, _PersistentDictMixin):
-    """Storage that acts like a dict but also can persist to disk.
-
-    :param filename: An absolute filepath to reprsent the storage on disk. The
-                     storage will loaded from this file if it already exists,
-                     otherwise the file will be created.
-    :param file_format: 'pickle', 'json' or 'csv'. pickle is the default. Be
-                        aware that json and csv have limited support for python
-                        objets.
-
-    .. warning:: Currently there are no limitations on the size of the storage.
-                 Please be sure to call :meth:`~xbmcswift2._Storage.clear`
-                 periodically.
-    """
-
-    def __init__(self, filename, file_format='pickle'):
-        """Acceptable formats are 'csv', 'json' and 'pickle'."""
-        self._items = {}
-        _PersistentDictMixin.__init__(self, filename, file_format=file_format)
-
-    def __setitem__(self, key, val):
-        self._items.__setitem__(key, val)
-
-    def __getitem__(self, key):
-        return self._items.__getitem__(key)
-
-    def __delitem__(self, key):
-        self._items.__delitem__(key)
-
-    def __iter__(self):
-        return iter(self._items)
+    def __repr__(self):
+        return str(self)  # no need of something complex
 
     def __len__(self):
-        return self._items.__len__
+        # `select count (*)` is super slow in sqlite (does a linear scan!!)
+        # As a result, len() is very slow too once the table size grows beyond trivial.
+        # We could keep the total count of rows ourselves, by means of triggers,
+        # but that seems too complicated and would slow down normal operation
+        # (insert/delete etc).
+        sql = self.GET_LEN % self.tablename
+        c = self._execute(sql)
+        rows = c.fetchone()
+        return rows[0] if rows is not None else 0
 
-    def raw_dict(self):
-        """Returns the wrapped dict"""
-        return self._items
+    def __nonzero__(self):
+        # No elements is False, otherwise True
+        sql = self.GET_MAX % self.tablename
+        c = self._execute(sql)
+        m = c.fetchone()[0]
+        # Explicit better than implicit and bla bla
+        return True if m is not None else False
 
-    initial_update = collections.MutableMapping.update
+    def keys(self):
+        sql = self.GET_KEYS % self.tablename
+        c = self._execute(sql)
+        return [key[0] for key in c]
 
-    def clear(self):
-        super(_Storage, self).clear()
-        self.sync()
+    def values(self):
+        sql = self.GET_VALUES % self.tablename
+        c = self._execute(sql)
+        return [decode(value[0]) for value in c]
 
+    def items(self):
+        sql = self.GET_ITEMS % self.tablename
+        c = self._execute(sql)
+        return [(key, decode(value)) for key, value in c]
 
-class TimedStorage(_Storage):
-    """A dict with the ability to persist to disk and TTL for items."""
+    def iterkeys(self):
+        for k in self.keys():
+            yield k
 
-    def __init__(self, filename, file_format='pickle', ttl=None):
-        """TTL if provided should be a datetime.timedelta. Any entries
-        older than the provided TTL will be removed upon load and upon item
-        access.
-        """
-        self.ttl = ttl
-        _Storage.__init__(self, filename, file_format=file_format)
+    def itervalues(self):
+        for v in self.values():
+            yield v
 
-    def __setitem__(self, key, val, raw=False):
-        if raw:
-            self._items[key] = val
-        else:
-            self._items[key] = (val, time.time())
+    def iteritems(self):
+        for kv in self.iteritems():
+            yield kv
+
+    def __contains__(self, key):
+        sql = self.HAS_ITEM % self.tablename
+        c = self._execute(sql, (key,))
+        return c.fetchone() is not None
 
     def __getitem__(self, key):
-        val, timestamp = self._items[key]
-        if self.ttl and (datetime.utcnow() -
-                         datetime.utcfromtimestamp(timestamp) > self.ttl):
-            del self._items[key]
-            return self._items[key][0]  # Will raise KeyError
-        return val
+        sql = self.GET_ITEM % self.tablename
+        c = self._execute(sql, (key,))
+        item = c.fetchone()
+        if item is None:
+            raise KeyError(key)
+        return decode(item[0])
 
-    def initial_update(self, mapping):
-        """Initially fills the underlying dictionary with keys, values and
-        timestamps.
-        """
-        for key, val in mapping.items():
-            _, timestamp = val
-            if not self.ttl or (datetime.utcnow() -
-                                datetime.utcfromtimestamp(timestamp) < self.ttl):
-                self.__setitem__(key, val, raw=True)
+    def __setitem__(self, key, value):
+        if self.ttl:
+            sql = self.ADD_ITEM_TTL % (self.tablename, self.ttl)
+        else:
+            sql = self.ADD_ITEM_NO_TTL % self.tablename
+        self._execute(sql, (key, encode(value)))
+
+    def __delitem__(self, key):
+        if key not in self:
+            raise KeyError(key)
+        sql = self.DEL_ITEM % self.tablename
+        self._execute(sql, (key,))
+
+    def update(self, items=(), **kwds):
+        try:
+            items = [(k, encode(v)) for k, v in items.items()]
+        except AttributeError:
+            pass
+
+        if self.ttl:
+            sql = self.ADD_ITEM_TTL % (self.tablename, self.ttl)
+        else:
+            sql = self.ADD_ITEM_NO_TTL % self.tablename
+        log.info("%s (%s)", sql, items)
+        self.conn.executemany(sql, items)
+        if kwds:
+            self.update(kwds)
+
+    def __iter__(self):
+        return iter(self.keys())
+
+    def clear(self):
+        # avoid VACUUM, as it gives "OperationalError: database schema has changed"
+        sql = self.CLEAR_ALL % self.tablename
+        self.conn.commit()
+        self._execute(sql)
+        self.conn.commit()
+
+    def purge(self):
+        sql = self.PURGE_ALL % self.tablename
+        self.conn.commit()
+        self._execute(sql)
+        self.conn.commit()
+
+    def commit(self):
+        if self.conn is not None:
+            self.conn.commit()
+    sync = commit
+
+    def close(self):
+        log.debug("Closing %s" % self)
+        if self.conn is not None:
+            self.conn.close()
+            self.conn = None
+
+    def terminate(self):
+        """Delete the underlying database file. Use with care."""
+        self.close()
+
+        if self.filename == ':memory:':
+            return
+
+        log.info("Deleting %s" % self.filename)
+        try:
+            os.remove(self.filename)
+        except IOError:
+            _, e, _ = sys.exc_info()  # python 2.5: "Exception as e"
+            log.warning("Failed to delete %s: %s" % (self.filename, str(e)))
+
+    def __del__(self):
+        # like close(), but assume globals are gone by now (such as the logger)
+        # noinspection PyBroadException
+        try:
+            if self.conn is not None:
+                self.conn.close()
+                self.conn = None
+        except:
+            pass

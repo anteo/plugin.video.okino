@@ -20,7 +20,7 @@ def play_file(media_id, url, title):
     scraper = container.scraper()
     history = container.history()
     meta_cache = container.meta_cache()
-    meta = meta_cache.setdefault(media_id, {})
+    meta = meta_cache.get(media_id, {})
     details = scraper.get_details_cached(media_id)
     item = itemify_details(details)
     title = u"%s / %s" % (ensure_unicode(title), item['info']['title'])
@@ -58,11 +58,12 @@ def show_files(media_id, folder_id):
 def show_folders(media_id):
     scraper = container.scraper()
     meta_cache = container.meta_cache()
-    meta = meta_cache.setdefault(media_id, {})
+    meta = meta_cache.get(media_id, {})
     plugin.set_content('movies')
     folders = scraper.get_folders_cached(media_id)
     total_size = sum(f.size for f in folders)
     meta['total_size'] = total_size
+    meta_cache[media_id] = meta
     for f in folders:
         if len(f.files) == 1 and not meta.get('is_series'):
             item = itemify_file(f.files[0], can_mark_watched=1)

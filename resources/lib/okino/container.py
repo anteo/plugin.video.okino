@@ -17,15 +17,15 @@ def http_client():
 
 
 def details_cache():
-    return plugin.get_storage('details_cache', ttl=7*60*24)
+    return plugin.get_storage('details_cache', ttl=7*60*24, auto_clear_corrupted=True)
 
 
 def folders_cache():
-    return plugin.get_storage('folders_cache', ttl=60*24)
+    return plugin.get_storage('folders_cache', ttl=60*24, auto_clear_corrupted=True)
 
 
 def search_cache():
-    return plugin.get_storage('search_cache', ttl=60)
+    return plugin.get_storage('search_cache', ttl=60, auto_clear_corrupted=True)
 
 
 @singleton
@@ -161,30 +161,36 @@ def player():
 @singleton
 def watched_items():
     from okino.storage import WatchedItems
-    return WatchedItems(plugin.get_storage('watched_items'))
+    return WatchedItems(plugin.get_storage('watched_items', auto_clear_corrupted=True))
 
 
 @singleton
 def bookmarks():
     from okino.storage import Bookmarks
-    return Bookmarks(plugin.get_storage('bookmarks'))
+    return Bookmarks(common_storage())
 
 
 @singleton
 def history():
     from okino.storage import HistoryItems
-    return HistoryItems(plugin.get_storage('history'), plugin.get_setting('history-items-count', int))
+    return HistoryItems(common_storage(),
+                        plugin.get_setting('history-items-count', int))
 
 
 @singleton
 def library_manager():
     from okino.library import LibraryManager
-    return LibraryManager(plugin.get_setting('library-path', unicode), plugin.get_storage('library_items'))
+    return LibraryManager(plugin.get_setting('library-path', unicode),
+                          plugin.get_storage('library_items', auto_clear_corrupted=True))
+
+
+def common_storage():
+    return plugin.get_storage('common', auto_clear_corrupted=True)
 
 
 def search_storage():
-    return plugin.get_storage('search')
+    return common_storage()
 
 
 def meta_cache():
-    return plugin.get_storage('meta_cache', ttl=60)
+    return plugin.get_storage('meta_cache', ttl=60, auto_clear_corrupted=True)

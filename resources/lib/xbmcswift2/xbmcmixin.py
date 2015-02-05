@@ -1,12 +1,11 @@
 import os
 import time
 
-from datetime import timedelta
 from functools import wraps
 
 import xbmcswift2
-from xbmcswift2 import xbmc, xbmcplugin, xbmcgui
-from xbmcswift2.storage import TimedStorage
+from xbmcswift2 import xbmc, xbmcplugin, xbmcgui, xbmcvfs
+from xbmcswift2.storage import Storage
 from xbmcswift2.logger import log
 from xbmcswift2.constants import VIEW_MODES, SortMethod
 from xbmcswift2.common import ensure_str
@@ -55,8 +54,7 @@ class XBMCMixin(object):
         """
         def decorating_function(function):
             # TODO test this method
-            storage = self.get_storage(self._function_cache_name, file_format='pickle',
-                                       ttl=ttl)
+            storage = self.get_storage(self._function_cache_name, ttl=ttl)
             kwd_mark = 'f35c2d973e1bbbc61ca60fc6d7ae4eb3'
 
             @wraps(function)
@@ -97,7 +95,7 @@ class XBMCMixin(object):
         return [name for name in os.listdir(self.storage_path)
                 if not name.startswith('.')]
 
-    def get_storage(self, name='main', file_format='pickle', ttl=None):
+    def get_storage(self, name='main', ttl=None, auto_clear_corrupted=False, tablename=None):
         """Returns a storage for the given name. The returned storage is a
         fully functioning python dictionary and is designed to be used that
         way. It is usually not necessary for the caller to load or save the
@@ -121,31 +119,37 @@ class XBMCMixin(object):
                     created. The currently specified TTL is always honored.
         """
 
+        import sqlite3
         if not hasattr(self, '_unsynced_storages'):
             self._unsynced_storages = {}
         filename = os.path.join(self.storage_path, name)
+        tablename = tablename or name
         try:
             storage = self._unsynced_storages[filename]
             log.debug('Loaded storage "%s" from memory', name)
         except KeyError:
             if ttl:
-                ttl = timedelta(minutes=ttl)
+                ttl *= 60
 
             try:
-                storage = TimedStorage(filename, file_format, ttl)
-            except ValueError:
-                log.warning('Storage "%s" corrupted', name, exc_info=1)
-                # Thrown when the storage file is corrupted and can't be read.
-                # Prompt user to delete storage.
-                choices = ['Clear storage', 'Cancel']
-                ret = xbmcgui.Dialog().select('A storage file is corrupted. It'
-                                              ' is recommended to clear it.',
-                                              choices)
-                if ret == 0:
-                    os.remove(filename)
-                    storage = TimedStorage(filename, file_format, ttl)
+                storage = Storage(filename, ttl=ttl, tablename=tablename)
+                storage.purge()
+            except sqlite3.DatabaseError:
+                log.warning('Storage "%s" corrupted?', name, exc_info=1)
+                if not auto_clear_corrupted:
+                    # Thrown when the storage file is corrupted and can't be read.
+                    # Prompt user to delete storage.
+                    choices = ['Clear storage', 'Cancel']
+                    ret = xbmcgui.Dialog().select('A storage file is corrupted. It'
+                                                  ' is recommended to clear it.',
+                                                  choices)
                 else:
-                    raise Exception('Corrupted storage file at %s' % filename)
+                    ret = 0
+                if ret == 0:
+                    xbmcvfs.delete(filename)
+                    storage = Storage(filename, ttl=ttl, tablename=tablename)
+                else:
+                    raise
 
             self._unsynced_storages[filename] = storage
             log.debug('Loaded storage "%s" from disk', name)

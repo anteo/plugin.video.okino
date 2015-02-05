@@ -16,6 +16,7 @@ import okino.plugin.main
 if __name__ == '__main__':
     sleep(5000)
     update_library()
+    plugin.close_storages()
     next_run = None
     while not abort_requested():
         now = datetime.datetime.now()
@@ -26,5 +27,6 @@ if __name__ == '__main__':
         elif now > next_run:
             if not xbmc.Player().isPlaying():
                 update_library()
+                plugin.close_storages()
                 next_run = None
         sleep(3000)
