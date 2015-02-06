@@ -116,6 +116,16 @@ def folder_title(folder):
            (" [%s]" % human_duration(folder.duration) if plugin.get_setting('show-duration', bool) else "")
 
 
+def library_folder_title(details, folder):
+    """
+    :type details: Details
+    :type folder: Folder
+    """
+    return "%s %s / %s / %s / %d %s" % (flag_label(folder.flag), color(details.title, 'white'),
+                                        details.section.singular.localized, folder.title, len(folder.files),
+                                        declension_ru(len(folder.files), lang(34005), lang(34006), lang(34007)))
+
+
 def human_size(num, suffix='b'):
     for unit in ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z']:
         if abs(num) < 1024.0:

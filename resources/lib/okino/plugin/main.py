@@ -3,7 +3,7 @@
 from okino.plugin import plugin
 from okino.common import lang, batch, abort_requested, save_files, purge_temp_dir, log
 from okino.plugin.common import with_fanart, itemify_file, itemify_folder, \
-    itemify_details, itemify_bookmarks
+    itemify_details, itemify_bookmarks, itemify_library_folder
 from okino.enumerations import Section, Genre
 from okino.plugin.search import make_search
 from okino.plugin.contextmenu import toggle_watched_context_menu, bookmark_context_menu, \
@@ -68,9 +68,9 @@ def show_folders(media_id):
         if len(f.files) == 1 and not meta.get('is_series'):
             item = itemify_file(f.files[0], can_mark_watched=1)
             item['label'] = tf.folder_file_title(f, f.files[0])
+            item['context_menu'] += library_context_menu(media_id, f.id)
         else:
             item = itemify_folder(f)
-        item['context_menu'] += library_context_menu(media_id, f.id)
         plugin.add_item(item)
     plugin.finish(sort_methods=['unsorted', 'title', 'duration', 'size'])
 
@@ -144,6 +144,23 @@ def history_index(section):
     return with_fanart(items)
 
 
+@plugin.route('/library')
+def library_items():
+    scraper = container.scraper()
+    library_manager = container.library_manager()
+    media_ids = library_manager.stored_media_ids()
+    for ids in batch(media_ids):
+        if abort_requested():
+            break
+        all_folders = scraper.get_folders_bulk(ids)
+        all_details = scraper.get_details_bulk(ids)
+        items = [itemify_library_folder(all_details[media_id], f)
+                 for media_id, folders in all_folders.iteritems()
+                 for f in folders if library_manager.has_folder(f.id)]
+        plugin.add_items(items)
+    plugin.finish(sort_methods=['title'], cache_to_disc=False)
+
+
 @plugin.route('/')
 def index():
     items = [
@@ -151,6 +168,9 @@ def index():
         {'label': lang(34002), 'path': plugin.url_for('global_bookmarks')},
         {'label': lang(34011), 'path': plugin.url_for('global_history')},
     ]
+    library_manager = container.library_manager()
+    if library_manager.has_folders():
+        items.append({'label': lang(34012), 'path': plugin.url_for('library_items')})
     items.extend({
         'label': tf.decorate(s.localized, bold=True, color='white'),
         'path': plugin.url_for('explore', section=s.name)

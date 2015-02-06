@@ -94,6 +94,22 @@ class LibraryManager:
                 del self.storage[folder_id]
         return False
 
+    def has_folders(self):
+        return len(self.storage) > 0
+
+    def stored_folder_ids(self):
+        return self.storage.keys()
+
+    def stored_media_ids(self):
+        media_ids = []
+        for folder_id, item in self.storage.items():
+            media_id = item[0]
+            if not self.has_folder(folder_id):
+                continue
+            if media_id not in media_ids:
+                media_ids.append(media_id)
+        return media_ids
+
 
 def update_library():
     import okino.container as container
@@ -105,13 +121,7 @@ def update_library():
     log = logging.getLogger(__name__)
     library_manager = container.library_manager()
     scraper = container.scraper()
-    media_ids = []
-    for folder_id, item in library_manager.storage.items():
-        media_id = item[0]
-        if not library_manager.has_folder(folder_id):
-            continue
-        if media_id not in media_ids:
-            media_ids.append(media_id)
+    media_ids = library_manager.stored_media_ids()
     if media_ids:
         log.info("Starting Okino.ru library update...")
         progress = xbmcgui.DialogProgressBG()
