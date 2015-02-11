@@ -15,12 +15,11 @@ class WatchedItems:
         if not watched:
             del self.watched[media_id]
         else:
-            d = self.watched.get(media_id, {})
+            d = self.watched.setdefault(media_id, {})
             if date_added:
                 d['date_added'] = date_added
             if total_size:
                 d['total_size'] = total_size
-            self.watched[media_id] = d
 
     def is_watched(self, media_id, date_added=None, total_size=None):
         if media_id not in self.watched:
@@ -54,20 +53,15 @@ class Bookmarks:
         :type storage: dict
         """
         self.storage = storage
-        self.bookmarks = storage.get('bookmarks', [])
-
-    def save(self):
-        self.storage['bookmarks'] = self.bookmarks
+        self.bookmarks = storage.setdefault('bookmarks', [])
 
     def add(self, media_id, section):
         self.bookmarks.append(Bookmark(media_id, section))
-        self.save()
 
     def delete(self, media_id):
         for b in self.bookmarks:
             if b.media_id == media_id:
                 self.bookmarks.remove(b)
-                self.save()
                 break
 
     def get(self, section=None):
@@ -86,11 +80,8 @@ class HistoryItems:
         :type storage: dict
         """
         self.storage = storage
-        self.items = storage.get('history_items', [])
+        self.items = storage.setdefault('history_items', [])
         self.max_items = max_items
-
-    def save(self):
-        self.storage['history_items'] = self.items
 
     def add(self, media_id, section, title, path, url, poster):
         old = next((item for item in self.items if item.path == path), None)
@@ -102,7 +93,6 @@ class HistoryItems:
         if old_count > 0:
             for item in items[:old_count]:
                 self.items.remove(item)
-        self.save()
 
     def get(self, section=None):
         """
@@ -116,4 +106,3 @@ class HistoryItems:
 
     def clear(self):
         del self.items[:]
-        self.save()

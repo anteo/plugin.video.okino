@@ -95,7 +95,7 @@ class XBMCMixin(object):
         return [name for name in os.listdir(self.storage_path)
                 if not name.startswith('.')]
 
-    def get_storage(self, name='main', ttl=None, auto_clear_corrupted=False, tablename=None):
+    def get_storage(self, name='main', ttl=None, tablename=None, autocommit=True, cached=False):
         """Returns a storage for the given name. The returned storage is a
         fully functioning python dictionary and is designed to be used that
         way. It is usually not necessary for the caller to load or save the
@@ -123,7 +123,7 @@ class XBMCMixin(object):
         if not hasattr(self, '_unsynced_storages'):
             self._unsynced_storages = {}
         filename = os.path.join(self.storage_path, name)
-        tablename = tablename or name
+        tablename = tablename or os.path.basename(name).replace('.', '_')
         try:
             storage = self._unsynced_storages[filename]
             log.debug('Loaded storage "%s" from memory', name)
@@ -131,26 +131,8 @@ class XBMCMixin(object):
             if ttl:
                 ttl *= 60
 
-            try:
-                storage = Storage(filename, ttl=ttl, tablename=tablename)
-                storage.purge()
-            except sqlite3.DatabaseError:
-                log.warning('Storage "%s" corrupted?', name, exc_info=1)
-                if not auto_clear_corrupted:
-                    # Thrown when the storage file is corrupted and can't be read.
-                    # Prompt user to delete storage.
-                    choices = ['Clear storage', 'Cancel']
-                    ret = xbmcgui.Dialog().select('A storage file is corrupted. It'
-                                                  ' is recommended to clear it.',
-                                                  choices)
-                else:
-                    ret = 0
-                if ret == 0:
-                    xbmcvfs.delete(filename)
-                    storage = Storage(filename, ttl=ttl, tablename=tablename)
-                else:
-                    raise
-
+            storage = Storage(filename, ttl=ttl, tablename=tablename, autocommit=autocommit,
+                              cached=cached, autopurge=True)
             self._unsynced_storages[filename] = storage
             log.debug('Loaded storage "%s" from disk', name)
         return storage

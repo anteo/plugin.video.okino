@@ -98,11 +98,11 @@ def toggle_watched_context_menu():
 
 
 def refresh_context_menu(media_id):
-    return [(lang(40304), actions.update_view(plugin.url_for('refresh', media_id=media_id)))]
+    return [(lang(40304), actions.background(plugin.url_for('refresh', media_id=media_id)))]
 
 
 def refresh_all_context_menu():
-    return [(lang(40303), actions.update_view(plugin.url_for('refresh_all')))]
+    return [(lang(40303), actions.background(plugin.url_for('refresh_all')))]
 
 
 def bookmark_context_menu(media_id, section, title):

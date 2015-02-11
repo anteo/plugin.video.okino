@@ -36,6 +36,9 @@ class AbstractSearchFilter:
     def __hash__(self):
         return hash(self.as_tuple())
 
+    def __ne__(self, other):
+        return self.as_tuple() != other.as_tuple()
+
     def __eq__(self, other):
         return self.as_tuple() == other.as_tuple()
 
@@ -91,4 +94,4 @@ class OkinoSearchFilter(AbstractSearchFilter):
         return encodestring(serialized)
 
     def __str__(self):
-        return repr(self.data)
+        return "OkinoSearchFilter"+repr(self.data)

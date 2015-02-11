@@ -127,13 +127,11 @@ def itemify_single_result(result, folders=None):
     is_series = result.section.is_series()
     watched = watched_items.is_watched(media_id, total_size=total_size if is_series else None)
     meta_cache = container.meta_cache()
-    meta = meta_cache.get(media_id, {})
-    if 'total_size' not in meta or 'is_series' not in meta or meta['total_size'] != total_size:
-        meta.update({
-            'total_size': total_size,
-            'is_series': is_series,
-        })
-        meta_cache[media_id] = meta
+    meta = meta_cache.setdefault(media_id, {})
+    meta.update({
+        'total_size': total_size,
+        'is_series': is_series,
+    })
     item = itemify_details(result)
     item.update({
         'label': tf.bookmark_title(result, folders),
@@ -159,13 +157,11 @@ def itemify_search_results(results):
         details = all_details[media.id]
         is_series = details.section.is_series()
         watched = watched_items.is_watched(media.id, date_added=media.date if is_series else None)
-        meta = meta_cache.get(media.id, {})
-        if 'date_added' not in meta or 'is_series' not in meta:
-            meta.update({
-                'date_added': media.date,
-                'is_series': is_series,
-            })
-            meta_cache[media.id] = meta
+        meta = meta_cache.setdefault(media.id, {})
+        meta.update({
+            'date_added': media.date,
+            'is_series': is_series,
+        })
         item = itemify_details(details)
         item.update({
             'label': tf.media_title(media),

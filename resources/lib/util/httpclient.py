@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import time
-import locale
 import os
 import re
 import logging
@@ -60,19 +59,10 @@ class HttpClient:
                     time.sleep(request.retry_timeout)
                     continue
                 raise
-            except urllib2.URLError, e:
-                self._decode_reason(e)
-                raise
 
         response.time = time.time() - response.time
         self.log.debug("Returned %r", response)
         return response
-
-    @staticmethod
-    def _decode_reason(e):
-        if e.reason:
-            os_encoding = locale.getpreferredencoding()
-            e.reason = str(e.reason).decode(os_encoding)
 
     def _build_opener(self, request):
         """

@@ -92,8 +92,8 @@ class AbstractScraper:
         :rtype : dict[int, Details]
         """
         cached_details = self.details_cache.keys()
-        not_cached_ids = [_id for _id in media_ids if str(_id) not in cached_details]
-        results = dict((_id, self.details_cache[_id]) for _id in media_ids if str(_id) in cached_details)
+        not_cached_ids = [_id for _id in media_ids if _id not in cached_details]
+        results = dict((_id, self.details_cache[_id]) for _id in media_ids if _id in cached_details)
         with Timer(logger=self.log, name="Bulk fetching"):
             try:
                 with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
@@ -117,8 +117,8 @@ class AbstractScraper:
         :rtype : dict[int, list[Folder]]
         """
         cached_folders = self.folders_cache.keys()
-        not_cached_ids = [_id for _id in media_ids if str(_id) not in cached_folders]
-        results = dict((_id, self.folders_cache[_id]) for _id in media_ids if str(_id) in cached_folders)
+        not_cached_ids = [_id for _id in media_ids if _id not in cached_folders]
+        results = dict((_id, self.folders_cache[_id]) for _id in media_ids if _id in cached_folders)
         with Timer(logger=self.log, name="Bulk fetching"):
             try:
                 with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
@@ -131,6 +131,8 @@ class AbstractScraper:
                         if len(result) > 1:
                             files_futures.update(dict((executor.submit(self.get_files, _id, f.id), (_id, i))
                                                       for i, f in enumerate(result)))
+                        else:
+                            self.folders_cache[_id] = result
 
                     for future in as_completed(files_futures, self.timeout):
                         result = future.result()

@@ -9,6 +9,7 @@
 """
 import sys
 import sqlite3
+import copy
 import os
 
 from xbmcswift2.common import ensure_fs_encoding
@@ -49,7 +50,8 @@ class Storage(DictMixin):
     CLEAR_ALL = 'DELETE FROM %s'
     PURGE_ALL = 'DELETE FROM %s WHERE expire < DATETIME("NOW")'
 
-    def __init__(self, filename, tablename="unnamed", flag="c", ttl=None):
+    def __init__(self, filename, tablename="unnamed", flag="c", ttl=None, autocommit=True, cached=False,
+                 autopurge=False):
         """
         Initialize a thread-safe sqlite-backed dictionary. The dictionary will
         be a table `tablename` in database file `filename`. A single file (=database)
@@ -80,25 +82,41 @@ class Storage(DictMixin):
             raise RuntimeError('Error! The directory does not exist, %s' % self.filename)
 
         self.tablename = tablename
+        self.autocommit = autocommit
+        self.cached = cached
+        self.original = {}
+        self.cache = {}
 
         log.debug("Opening Sqlite table %r in %s" % (tablename, self.filename))
-        self.conn = sqlite3.connect(self.filename)
+        if self.autocommit:
+            self.conn = sqlite3.connect(self.filename, isolation_level=None)
+        else:
+            self.conn = sqlite3.connect(self.filename)
         try:
             self._execute(self.CREATE_TABLE % self.tablename)
             self._execute(self.CREATE_INDEX % self.tablename)
-            self.conn.commit()
             if flag == 'w':
                 self.clear()
+            elif autopurge and self.ttl:
+                self.purge()
+            elif cached:
+                self._load()
         except sqlite3.DatabaseError:
             self.close()
             raise
 
+    def _load(self):
+        sql = self.GET_ITEMS % self.tablename
+        c = self._execute(sql)
+        self.cache = dict((decode(key), decode(value)) for key, value in c)
+        self.original = copy.deepcopy(self.cache)
+
     def _execute(self, sql, params=()):
         c = self.conn.cursor()
-        if params:
-            log.debug("%s ? %s", sql, params)
-        else:
-            log.debug(sql)
+        # if params:
+        #     log.info("%s ? %s", sql, params)
+        # else:
+        #     log.info(sql)
         c.execute(sql, params)
         return c
 
@@ -121,33 +139,49 @@ class Storage(DictMixin):
         # We could keep the total count of rows ourselves, by means of triggers,
         # but that seems too complicated and would slow down normal operation
         # (insert/delete etc).
-        sql = self.GET_LEN % self.tablename
-        c = self._execute(sql)
-        rows = c.fetchone()
-        return rows[0] if rows is not None else 0
+        if self.cached:
+            return len(self.cache)
+        else:
+            sql = self.GET_LEN % self.tablename
+            c = self._execute(sql)
+            rows = c.fetchone()
+            return rows[0] if rows is not None else 0
 
     def __nonzero__(self):
-        # No elements is False, otherwise True
-        sql = self.GET_MAX % self.tablename
-        c = self._execute(sql)
-        m = c.fetchone()[0]
-        # Explicit better than implicit and bla bla
-        return True if m is not None else False
+        if self.cached:
+            return bool(self.cache)
+        else:
+            # No elements is False, otherwise True
+            sql = self.GET_MAX % self.tablename
+            c = self._execute(sql)
+            m = c.fetchone()[0]
+            # Explicit better than implicit and bla bla
+            return True if m is not None else False
 
     def keys(self):
-        sql = self.GET_KEYS % self.tablename
-        c = self._execute(sql)
-        return [key[0] for key in c]
+        if self.cached:
+            return self.cache.keys()
+        else:
+            sql = self.GET_KEYS % self.tablename
+            c = self._execute(sql)
+            return [decode(key[0]) for key in c]
 
     def values(self):
-        sql = self.GET_VALUES % self.tablename
-        c = self._execute(sql)
-        return [decode(value[0]) for value in c]
+        if self.cached:
+            return self.cache.values()
+        else:
+            sql = self.GET_VALUES % self.tablename
+            c = self._execute(sql)
+            return [decode(value[0]) for value in c]
 
     def items(self):
-        sql = self.GET_ITEMS % self.tablename
-        c = self._execute(sql)
-        return [(key, decode(value)) for key, value in c]
+        if self.cached:
+            return self.cache.items()
+        else:
+            sql = self.GET_ITEMS % self.tablename
+            c = self._execute(sql)
+            res = [(decode(key), decode(value)) for key, value in c]
+            return res
 
     def iterkeys(self):
         for k in self.keys():
@@ -158,47 +192,69 @@ class Storage(DictMixin):
             yield v
 
     def iteritems(self):
-        for kv in self.iteritems():
+        for kv in self.items():
             yield kv
 
     def __contains__(self, key):
-        sql = self.HAS_ITEM % self.tablename
-        c = self._execute(sql, (key,))
-        return c.fetchone() is not None
+        if key in self.cache:
+            return self.cache[key]
+        elif self.cached:
+            return False
+        else:
+            sql = self.HAS_ITEM % self.tablename
+            c = self._execute(sql, (encode(key),))
+            return c.fetchone() is not None
 
     def __getitem__(self, key):
-        sql = self.GET_ITEM % self.tablename
-        c = self._execute(sql, (key,))
-        item = c.fetchone()
-        if item is None:
+        if key in self.cache:
+            return self.cache[key]
+        elif self.cached:
             raise KeyError(key)
-        return decode(item[0])
+        else:
+            sql = self.GET_ITEM % self.tablename
+            c = self._execute(sql, (encode(key),))
+            item = c.fetchone()
+            if item is None:
+                raise KeyError(key)
+            res = decode(item[0])
+            if self.cached:
+                self.cache[key] = res
+            return res
 
     def __setitem__(self, key, value):
-        if self.ttl:
-            sql = self.ADD_ITEM_TTL % (self.tablename, self.ttl)
+        if self.cached:
+            self.cache[key] = value
         else:
-            sql = self.ADD_ITEM_NO_TTL % self.tablename
-        self._execute(sql, (key, encode(value)))
+            if self.ttl:
+                sql = self.ADD_ITEM_TTL % (self.tablename, self.ttl)
+            else:
+                sql = self.ADD_ITEM_NO_TTL % self.tablename
+            self._execute(sql, (encode(key), encode(value)))
 
     def __delitem__(self, key):
-        if key not in self:
+        if key in self.cache:
+            del self.cache[key]
+        elif key not in self:
             raise KeyError(key)
         sql = self.DEL_ITEM % self.tablename
-        self._execute(sql, (key,))
+        self._execute(sql, (encode(key),))
 
-    def update(self, items=(), **kwds):
-        try:
-            items = [(k, encode(v)) for k, v in items.items()]
-        except AttributeError:
-            pass
-
-        if self.ttl:
-            sql = self.ADD_ITEM_TTL % (self.tablename, self.ttl)
+    def update(self, items=None, **kwds):
+        items = items or {}
+        if self.cached:
+            self.cache.update(items)
         else:
-            sql = self.ADD_ITEM_NO_TTL % self.tablename
-        log.info("%s (%s)", sql, items)
-        self.conn.executemany(sql, items)
+            try:
+                items = [(encode(k), encode(v)) for k, v in items.items()]
+            except AttributeError:
+                pass
+
+            if self.ttl:
+                sql = self.ADD_ITEM_TTL % (self.tablename, self.ttl)
+            else:
+                sql = self.ADD_ITEM_NO_TTL % self.tablename
+            # log.info("%s (%s)", sql, items)
+            self.conn.executemany(sql, items)
         if kwds:
             self.update(kwds)
 
@@ -208,17 +264,26 @@ class Storage(DictMixin):
     def clear(self):
         # avoid VACUUM, as it gives "OperationalError: database schema has changed"
         sql = self.CLEAR_ALL % self.tablename
-        self.conn.commit()
         self._execute(sql)
-        self.conn.commit()
+        self.cache = {}
 
     def purge(self):
         sql = self.PURGE_ALL % self.tablename
-        self.conn.commit()
         self._execute(sql)
-        self.conn.commit()
+        if self.cached:
+            self._load()
+        else:
+            self.cache = {}
 
     def commit(self):
+        if self.cached and self.cache:
+            self.cached = False
+            upd_dict = dict((k, v) for k, v in self.cache.iteritems()
+                            if k not in self.original or self.original[k] != v)
+            if upd_dict:
+                self.update(upd_dict)
+            self.original = copy.deepcopy(self.cache)
+            self.cached = True
         if self.conn is not None:
             self.conn.commit()
     sync = commit
@@ -226,6 +291,8 @@ class Storage(DictMixin):
     def close(self):
         log.debug("Closing %s" % self)
         if self.conn is not None:
+            if self.autocommit:
+                self.commit()
             self.conn.close()
             self.conn = None
 
@@ -248,6 +315,8 @@ class Storage(DictMixin):
         # noinspection PyBroadException
         try:
             if self.conn is not None:
+                if self.autocommit:
+                    self.commit()
                 self.conn.close()
                 self.conn = None
         except:

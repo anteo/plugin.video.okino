@@ -3,7 +3,6 @@
 from okino.plugin import plugin
 from search import make_search
 from common import with_fanart, lang
-from okino.searchfilter import AbstractSearchFilter
 from okino.enumerations import Section, Format, Genre, Country, Language, AudioQuality, \
     VideoQuality, MPAA, Order, OrderDirection
 from okino.common import notify
@@ -89,7 +88,6 @@ def edit_advanced_search(param):
         dirs = OrderDirection.all()
         res = xbmcgui.Dialog().select(lang(34115), [g.localized for g in dirs])
         sf.order_dir = OrderDirection.DESC if res == 1 else None
-    storage['search_filter'] = sf
 
 
 @plugin.route('/advanced_search/<section>')
