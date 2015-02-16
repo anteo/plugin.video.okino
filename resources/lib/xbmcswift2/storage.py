@@ -72,22 +72,25 @@ class Storage(DictMixin):
         """
         self.ttl = ttl
         self.filename = filename
-        filename = ensure_fs_encoding(filename)
-        if flag == 'n':
-            if os.path.exists(filename):
-                os.remove(filename)
-
-        dirname = os.path.dirname(filename)
-        if dirname and not os.path.exists(dirname):
-            raise RuntimeError('Error! The directory does not exist, %s' % self.filename)
-
+        self.autopurge = autopurge
+        self.flag = flag
         self.tablename = tablename
         self.autocommit = autocommit
         self.cached = cached
         self.original = {}
         self.cache = {}
+        self.conn = None
 
-        log.debug("Opening Sqlite table %r in %s" % (tablename, self.filename))
+    def _connect(self):
+        log.debug("Opening Sqlite table %r in %s" % (self.tablename, self.filename))
+        filename = ensure_fs_encoding(self.filename)
+        if self.flag == 'n':
+            if os.path.exists(filename):
+                os.remove(filename)
+        dirname = os.path.dirname(filename)
+        if dirname and not os.path.exists(dirname):
+            raise RuntimeError('Error! The directory does not exist, %s' % self.filename)
+
         if self.autocommit:
             self.conn = sqlite3.connect(self.filename, isolation_level=None)
         else:
@@ -95,11 +98,11 @@ class Storage(DictMixin):
         try:
             self._execute(self.CREATE_TABLE % self.tablename)
             self._execute(self.CREATE_INDEX % self.tablename)
-            if flag == 'w':
+            if self.flag == 'w':
                 self.clear()
-            elif autopurge and self.ttl:
+            elif self.autopurge and self.ttl:
                 self.purge()
-            elif cached:
+            elif self.cached:
                 self._load()
         except sqlite3.DatabaseError:
             self.close()
@@ -112,6 +115,8 @@ class Storage(DictMixin):
         self.original = copy.deepcopy(self.cache)
 
     def _execute(self, sql, params=()):
+        if not self.conn:
+            self._connect()
         c = self.conn.cursor()
         # if params:
         #     log.info("%s ? %s", sql, params)
@@ -254,6 +259,8 @@ class Storage(DictMixin):
             else:
                 sql = self.ADD_ITEM_NO_TTL % self.tablename
             # log.info("%s (%s)", sql, items)
+            if not self.conn:
+                self._connect()
             self.conn.executemany(sql, items)
         if kwds:
             self.update(kwds)
@@ -284,13 +291,13 @@ class Storage(DictMixin):
                 self.update(upd_dict)
             self.original = copy.deepcopy(self.cache)
             self.cached = True
-        if self.conn is not None:
+        if self.conn:
             self.conn.commit()
     sync = commit
 
     def close(self):
         log.debug("Closing %s" % self)
-        if self.conn is not None:
+        if self.conn:
             if self.autocommit:
                 self.commit()
             self.conn.close()
