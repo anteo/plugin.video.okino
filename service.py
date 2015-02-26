@@ -22,7 +22,7 @@ if __name__ == '__main__':
         now = datetime.datetime.now()
         if not next_run:
             next_run = now
-            next_run += datetime.timedelta(days=1)
+            next_run += datetime.timedelta(hours=12)
             plugin.log.info("Scheduling next library update at %s" % next_run)
         elif now > next_run:
             if not xbmc.Player().isPlaying():

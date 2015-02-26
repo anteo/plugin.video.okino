@@ -17,11 +17,11 @@ def http_client():
 
 
 def details_cache():
-    return plugin.get_storage('details_cache.db', ttl=7*60*24)
+    return plugin.get_storage('details_cache.db', ttl=3*60*24)
 
 
 def folders_cache():
-    return plugin.get_storage('folders_cache.db', ttl=60*24)
+    return plugin.get_storage('folders_cache.db', ttl=60*12)
 
 
 def search_cache():
