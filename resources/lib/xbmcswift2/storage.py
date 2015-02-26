@@ -145,6 +145,8 @@ class Storage(DictMixin):
         # but that seems too complicated and would slow down normal operation
         # (insert/delete etc).
         if self.cached:
+            if not self.conn:
+                self._connect()
             return len(self.cache)
         else:
             sql = self.GET_LEN % self.tablename
@@ -154,6 +156,8 @@ class Storage(DictMixin):
 
     def __nonzero__(self):
         if self.cached:
+            if not self.conn:
+                self._connect()
             return bool(self.cache)
         else:
             # No elements is False, otherwise True
@@ -165,6 +169,8 @@ class Storage(DictMixin):
 
     def keys(self):
         if self.cached:
+            if not self.conn:
+                self._connect()
             return self.cache.keys()
         else:
             sql = self.GET_KEYS % self.tablename
@@ -173,6 +179,8 @@ class Storage(DictMixin):
 
     def values(self):
         if self.cached:
+            if not self.conn:
+                self._connect()
             return self.cache.values()
         else:
             sql = self.GET_VALUES % self.tablename
@@ -181,6 +189,8 @@ class Storage(DictMixin):
 
     def items(self):
         if self.cached:
+            if not self.conn:
+                self._connect()
             return self.cache.items()
         else:
             sql = self.GET_ITEMS % self.tablename
@@ -201,6 +211,8 @@ class Storage(DictMixin):
             yield kv
 
     def __contains__(self, key):
+        if not self.conn:
+            self._connect()
         if key in self.cache:
             return self.cache[key]
         elif self.cached:
@@ -211,6 +223,8 @@ class Storage(DictMixin):
             return c.fetchone() is not None
 
     def __getitem__(self, key):
+        if not self.conn:
+            self._connect()
         if key in self.cache:
             return self.cache[key]
         elif self.cached:
@@ -227,6 +241,8 @@ class Storage(DictMixin):
             return res
 
     def __setitem__(self, key, value):
+        if not self.conn:
+            self._connect()
         if self.cached:
             self.cache[key] = value
         else:
@@ -237,6 +253,8 @@ class Storage(DictMixin):
             self._execute(sql, (encode(key), encode(value)))
 
     def __delitem__(self, key):
+        if not self.conn:
+            self._connect()
         if key in self.cache:
             del self.cache[key]
         elif key not in self:
@@ -245,6 +263,8 @@ class Storage(DictMixin):
         self._execute(sql, (encode(key),))
 
     def update(self, items=None, **kwds):
+        if not self.conn:
+            self._connect()
         items = items or {}
         if self.cached:
             self.cache.update(items)
@@ -259,8 +279,6 @@ class Storage(DictMixin):
             else:
                 sql = self.ADD_ITEM_NO_TTL % self.tablename
             # log.info("%s (%s)", sql, items)
-            if not self.conn:
-                self._connect()
             self.conn.executemany(sql, items)
         if kwds:
             self.update(kwds)
