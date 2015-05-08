@@ -689,7 +689,7 @@ class OkinoScraper(AbstractScraper):
 
     @staticmethod
     def _parse_size(size):
-        size = size.strip()
+        size = size.strip(" \t\xa0")
         if size.isdigit():
             return long(size)
         else:
@@ -703,7 +703,7 @@ class OkinoScraper(AbstractScraper):
 
     @staticmethod
     def _parse_duration(duration):
-        duration = duration.strip()
+        duration = duration.strip(" \t\xa0")
         parts = duration.split(":")
         if len(parts) == 1:
             return int(duration)
