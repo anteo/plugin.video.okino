@@ -13,10 +13,16 @@ from xbmcswift2 import xbmc
 import okino.plugin.main
 
 
+def safe_update():
+    try:
+        update_library()
+        plugin.close_storages()
+    except Exception as e:
+        plugin.log.exception(e)
+
 if __name__ == '__main__':
     sleep(5000)
-    update_library()
-    plugin.close_storages()
+    safe_update()
     next_run = None
     while not abort_requested():
         now = datetime.datetime.now()
@@ -26,7 +32,6 @@ if __name__ == '__main__':
             plugin.log.info("Scheduling next library update at %s" % next_run)
         elif now > next_run:
             if not xbmc.Player().isPlaying():
-                update_library()
-                plugin.close_storages()
+                safe_update()
                 next_run = None
-        sleep(3000)
+        sleep(1000*60)
