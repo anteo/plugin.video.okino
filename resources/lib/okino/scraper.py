@@ -504,7 +504,7 @@ class OkinoScraper(AbstractScraper):
                     languages = None
                     video_quality = audio_quality = None
                     embedded_subtitles = external_subtitles = None
-                    size = duration = None
+                    size = duration = 0
                     for p in right_div.find('p'):
                         name = p.find('span').text.rstrip(':')
                         if name == 'Языки звуковых дорожек':
