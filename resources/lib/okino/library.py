@@ -29,7 +29,7 @@ class LibraryManager:
     @staticmethod
     def clean_path_component(string):
         import re
-        return re.sub(ur'(?u)[^A-Za-zА-Яа-я0-9_\-]+', ' ', string)
+        return re.sub(ur'(?u)[^A-Za-zА-Яа-яЁё0-9_\-]+', ' ', string)
 
     def get_media_path(self, section, title):
         title = self.clean_path_component(title)
