@@ -37,6 +37,7 @@ def scraper():
                         details_cache=details_cache(),
                         folders_cache=folders_cache(),
                         search_cache=search_cache(),
+                        persistent_ids=not_refreshing_items(),
                         timeout=30)
 
 
@@ -194,3 +195,8 @@ def search_storage():
 
 def meta_cache():
     return plugin.get_storage('meta_cache.db', ttl=60, cached=True)
+
+
+def not_refreshing_items():
+    storage = common_storage()
+    return storage.setdefault('not_refreshing_items', {})

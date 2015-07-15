@@ -46,7 +46,7 @@ class ScraperError(LocalizedError):
 
 class AbstractScraper:
     def __init__(self, log=None, http_params=None, http_client=None, max_workers=10, timeout=30,
-                 details_cache=None, folders_cache=None, search_cache=None):
+                 details_cache=None, folders_cache=None, search_cache=None, persistent_ids=None):
         self.log = log or logging.getLogger(__name__)
         self.http_client = http_client or HttpClient()
         self.http_params = http_params or {}
@@ -55,6 +55,7 @@ class AbstractScraper:
         self.folders_cache = folders_cache if folders_cache is not None else {}
         self.search_cache = search_cache if search_cache is not None else {}
         self.max_workers = max_workers
+        self.persistent_ids = persistent_ids or []
         self.http_response = None
         self.has_more = False
 
@@ -104,6 +105,8 @@ class AbstractScraper:
                         result = future.result()
                         _id = result.media_id
                         self.details_cache[_id] = results[_id] = result
+                        if _id in self.persistent_ids:
+                            self.details_cache.protect_item(_id)
             except TimeoutError as e:
                 raise ScraperError(32000, "Timeout while fetching URLs", cause=e)
         return results
@@ -137,12 +140,16 @@ class AbstractScraper:
                                                       for i, f in enumerate(result)))
                         else:
                             self.folders_cache[_id] = result
+                            if _id in self.persistent_ids:
+                                self.folders_cache.protect_item(_id)
 
                     for future in as_completed(files_futures, self.timeout):
                         result = future.result()
                         _id, i = files_futures[future]
                         results[_id][i].files.extend(result)
                         self.folders_cache[_id] = results[_id]
+                        if _id in self.persistent_ids:
+                            self.folders_cache.protect_item(_id)
             except TimeoutError as e:
                 raise ScraperError(32000, "Timeout while fetching URLs", cause=e)
         return results

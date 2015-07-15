@@ -35,8 +35,17 @@ def refresh_all():
 
 @plugin.route('/turn_on_auto_refresh/<media_id>')
 def turn_on_auto_refresh(media_id):
-    container.details_cache().unprotect_item(media_id)
-    container.folders_cache().unprotect_item(media_id)
+    try:
+        container.details_cache().unprotect_item(media_id)
+    except KeyError:
+        pass
+    try:
+        container.folders_cache().unprotect_item(media_id)
+    except KeyError:
+        pass
+    not_refreshing_items = container.not_refreshing_items()
+    if media_id in not_refreshing_items:
+        del not_refreshing_items[media_id]
     plugin.refresh()
 
 
@@ -47,6 +56,8 @@ def turn_off_auto_refresh(media_id):
     scraper.get_folders_cached(media_id)
     container.details_cache().protect_item(media_id)
     container.folders_cache().protect_item(media_id)
+    not_refreshing_items = container.not_refreshing_items()
+    not_refreshing_items[media_id] = True
     plugin.refresh()
 
 
@@ -144,12 +155,12 @@ def mark_watched_context_menu(media_id, date_added=None, total_size=None):
 
 
 def toggle_auto_refresh_context_menu(media_id):
-    details_cache = container.details_cache()
-    expire = details_cache.get_item_expire(media_id)
-    if expire:
-        return [(lang(40324), actions.background(plugin.url_for('turn_off_auto_refresh', media_id=media_id)))]
-    else:
+    not_refreshing_items = container.not_refreshing_items()
+#   plugin.log.info("Media ID: %d, Expire: %r" % (media_id, container.details_cache().get_item_expire(media_id)))
+    if media_id in not_refreshing_items:
         return [(lang(40323), actions.background(plugin.url_for('turn_on_auto_refresh', media_id=media_id)))]
+    else:
+        return [(lang(40324), actions.background(plugin.url_for('turn_off_auto_refresh', media_id=media_id)))]
 
 
 def search_result_context_menu(details, date_added=None, total_size=None):
