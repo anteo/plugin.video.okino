@@ -3,7 +3,7 @@ from okino import container as container
 from okino.common import lang, filter_dict, date_to_str
 from okino.plugin import plugin
 from okino.plugin.contextmenu import search_result_context_menu, toggle_watched_context_menu, \
-    refresh_context_menu, download_torrent_context_menu, library_context_menu
+    refresh_context_menu, download_torrent_context_menu, library_context_menu, toggle_auto_refresh_context_menu
 from okino.scraper import Details, Media, Folder, File
 import titleformat as tf
 
@@ -25,6 +25,7 @@ def itemify_library_folder(d, f):
     item = itemify_folder(f)
     item['label'] = tf.library_folder_title(d, f)
     item['info']['title'] = d.title
+    item['context_menu'] += toggle_auto_refresh_context_menu(f.media_id)
     return item
 
 

@@ -91,6 +91,8 @@ class AbstractScraper:
         """
         :rtype : dict[int, Details]
         """
+        if not media_ids:
+            return {}
         cached_details = self.details_cache.keys()
         not_cached_ids = [_id for _id in media_ids if _id not in cached_details]
         results = dict((_id, self.details_cache[_id]) for _id in media_ids if _id in cached_details)
@@ -116,6 +118,8 @@ class AbstractScraper:
         """
         :rtype : dict[int, list[Folder]]
         """
+        if not media_ids:
+            return {}
         cached_folders = self.folders_cache.keys()
         not_cached_ids = [_id for _id in media_ids if _id not in cached_folders]
         results = dict((_id, self.folders_cache[_id]) for _id in media_ids if _id in cached_folders)

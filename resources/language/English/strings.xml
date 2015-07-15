@@ -388,6 +388,8 @@
     <string id="40315">Clear history</string>
     <string id="40320">Add to library</string>
     <string id="40321">Remove from library</string>
+    <string id="40323">Turn on auto refresh</string>
+    <string id="40324">Turn off auto refresh</string>
 
     <string id="40308">%s «%s» successfully added to bookmarks</string>
     <string id="40312">No results found for search «%s»</string>

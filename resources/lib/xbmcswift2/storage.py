@@ -10,8 +10,10 @@
 import sys
 import sqlite3
 import copy
+import time
 import os
 
+from datetime import datetime, timedelta
 from xbmcswift2.common import ensure_fs_encoding
 from xbmcswift2.logger import log
 from UserDict import DictMixin
@@ -41,11 +43,13 @@ class Storage(DictMixin):
     GET_MAX = 'SELECT MAX(ROWID) FROM %s WHERE (expire IS NULL OR expire >= DATETIME("NOW"))'
     GET_KEYS = 'SELECT key FROM %s WHERE (expire IS NULL OR expire >= DATETIME("NOW")) ORDER BY rowid'
     GET_VALUES = 'SELECT value FROM %s WHERE (expire IS NULL OR expire >= DATETIME("NOW")) ORDER BY rowid'
-    GET_ITEMS = 'SELECT key, value FROM %s WHERE (expire IS NULL OR expire >= DATETIME("NOW")) ORDER BY rowid '
+    GET_ITEMS = 'SELECT key, value, expire FROM %s WHERE (expire IS NULL OR expire >= DATETIME("NOW")) ORDER BY rowid '
     HAS_ITEM = 'SELECT 1 FROM %s WHERE key = ? AND (expire IS NULL OR expire >= DATETIME("NOW"))'
-    GET_ITEM = 'SELECT value FROM %s WHERE key = ? AND (expire IS NULL OR expire >= DATETIME("NOW"))'
+    GET_ITEM = 'SELECT value, expire FROM %s WHERE key = ? AND (expire IS NULL OR expire >= DATETIME("NOW"))'
     ADD_ITEM_NO_TTL = 'REPLACE INTO %s (key, value, expire) VALUES (?, ?, NULL)'
     ADD_ITEM_TTL = 'REPLACE INTO %s (key, value, expire) VALUES (?, ?, DATETIME("NOW", "+%d SECONDS"))'
+    SET_ITEM_TTL = 'UPDATE %s SET expire=DATETIME("NOW", "+%d SECONDS") WHERE key = ?'
+    SET_ITEM_NO_TTL = 'UPDATE %s SET expire=NULL WHERE key = ?'
     DEL_ITEM = 'DELETE FROM %s WHERE key = ?'
     CLEAR_ALL = 'DELETE FROM %s'
     PURGE_ALL = 'DELETE FROM %s WHERE expire < DATETIME("NOW")'
@@ -79,6 +83,7 @@ class Storage(DictMixin):
         self.cached = cached
         self.original = {}
         self.cache = {}
+        self.expire_cache = {}
         self.conn = None
 
     def _connect(self):
@@ -111,7 +116,8 @@ class Storage(DictMixin):
     def _load(self):
         sql = self.GET_ITEMS % self.tablename
         c = self._execute(sql)
-        self.cache = dict((decode(key), decode(value)) for key, value in c)
+        self.cache = dict((decode(key), decode(value)) for key, value, expire in c)
+        self.expire_cache = dict((decode(key), self._datetime(expire)) for key, value, expire in c)
         self.original = copy.deepcopy(self.cache)
 
     def _execute(self, sql, params=()):
@@ -195,7 +201,8 @@ class Storage(DictMixin):
         else:
             sql = self.GET_ITEMS % self.tablename
             c = self._execute(sql)
-            res = [(decode(key), decode(value)) for key, value in c]
+            res = [(decode(key), decode(value)) for key, value, expire in c]
+            self.expire_cache = [(decode(key), self._datetime(expire)) for key, value, expire in c]
             return res
 
     def iterkeys(self):
@@ -238,7 +245,15 @@ class Storage(DictMixin):
             res = decode(item[0])
             if self.cached:
                 self.cache[key] = res
+            self.expire_cache[key] = self._datetime(item[1])
             return res
+
+    @staticmethod
+    def _datetime(s):
+        if s is None:
+            return None
+        else:
+            return datetime(*(time.strptime(s, '%Y-%m-%d %H:%M:%S')[0:6]))
 
     def __setitem__(self, key, value):
         if not self.conn:
@@ -251,10 +266,21 @@ class Storage(DictMixin):
             else:
                 sql = self.ADD_ITEM_NO_TTL % self.tablename
             self._execute(sql, (encode(key), encode(value)))
+        self.expire_cache[key] = self._get_expire_datetime()
+
+    def _get_expire_datetime(self, ttl=False):
+        if ttl is False:
+            ttl = self.ttl
+        if ttl is None:
+            return None
+        else:
+            return datetime.utcnow() + timedelta(seconds=ttl)
 
     def __delitem__(self, key):
         if not self.conn:
             self._connect()
+        if key in self.expire_cache:
+            del self.expire_cache[key]
         if key in self.cache:
             del self.cache[key]
         elif key not in self:
@@ -269,8 +295,9 @@ class Storage(DictMixin):
         if self.cached:
             self.cache.update(items)
         else:
+            pairs = []
             try:
-                items = [(encode(k), encode(v)) for k, v in items.items()]
+                pairs = [(encode(k), encode(v)) for k, v in items.items()]
             except AttributeError:
                 pass
 
@@ -278,10 +305,33 @@ class Storage(DictMixin):
                 sql = self.ADD_ITEM_TTL % (self.tablename, self.ttl)
             else:
                 sql = self.ADD_ITEM_NO_TTL % self.tablename
-            # log.info("%s (%s)", sql, items)
-            self.conn.executemany(sql, items)
+            # log.info("%s (%s)", sql, pairs)
+            self.conn.executemany(sql, pairs)
+        for k in items.keys():
+            self.expire_cache[k] = self._get_expire_datetime()
         if kwds:
             self.update(kwds)
+
+    def get_item_expire(self, key):
+        if key not in self.expire_cache:
+            self.__getitem__(key)
+        return self.expire_cache[key]
+
+    def set_item_ttl(self, key, ttl):
+        if ttl is None:
+            sql = self.SET_ITEM_NO_TTL % self.tablename
+        else:
+            sql = self.SET_ITEM_TTL % (self.tablename, ttl)
+        if self._execute(sql, (encode(key),)).rowcount:
+            self.expire_cache[key] = self._get_expire_datetime(ttl)
+        else:
+            raise KeyError(key)
+
+    def protect_item(self, key):
+        self.set_item_ttl(key, None)
+
+    def unprotect_item(self, key):
+        self.set_item_ttl(key, self.ttl)
 
     def __iter__(self):
         return iter(self.keys())
@@ -291,6 +341,7 @@ class Storage(DictMixin):
         sql = self.CLEAR_ALL % self.tablename
         self._execute(sql)
         self.cache = {}
+        self.expire_cache = {}
 
     def purge(self):
         sql = self.PURGE_ALL % self.tablename
@@ -299,6 +350,7 @@ class Storage(DictMixin):
             self._load()
         else:
             self.cache = {}
+            self.expire_cache = {}
 
     def commit(self):
         if self.cached and self.cache:
